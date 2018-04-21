@@ -4,11 +4,11 @@ from torch.utils.data import DataLoader
 from torchvision.datasets import CIFAR10
 import torch.nn as nn
 import numpy as np
-from bgan.cnnTrainer import CnnTrainer
-from bgan.vatCnnTrainer import VatCnnTrainer
-from bgan.networkparts import layer13
-import bgan.augLayers as augLayers
-from bgan.schedules import cosLr, sigmoidConsRamp
+from oil.cnnTrainer import CnnTrainer
+from oil.vatCnnTrainer import VatCnnTrainer
+from oil.networkparts import layer13
+import oil.augLayers as augLayers
+from oil.schedules import cosLr, sigmoidConsRamp
 import torch.optim as optim
 
 

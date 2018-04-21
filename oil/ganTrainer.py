@@ -7,8 +7,8 @@ import torch.nn.functional as F
 import torchvision.utils as vutils
 import tensorboardX
 import itertools
-from bgan.utils import to_var_gpu, prettyPrintLog, logOneMinusSoftmax
-from bgan.cnnTrainer import CnnTrainer
+from oil.utils import to_var_gpu, prettyPrintLog, logOneMinusSoftmax
+from oil.cnnTrainer import CnnTrainer
 import copy
 
 class GanTrainer(CnnTrainer):

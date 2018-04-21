@@ -2,9 +2,9 @@ import torch
 import numpy as np
 import torch.nn as nn
 
-from bgan.cnnTrainer import CnnTrainer
-from bgan.losses import softmax_mse_loss, softmax_mse_loss_both
-from bgan.schedules import sigmoidConsRamp
+from oil.cnnTrainer import CnnTrainer
+from oil.losses import softmax_mse_loss, softmax_mse_loss_both
+from oil.schedules import sigmoidConsRamp
 
 class PiTrainer(CnnTrainer):
     def __init__(self, *args, cons_weight=100, rampup_epochs=10,

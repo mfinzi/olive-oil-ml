@@ -5,8 +5,8 @@ import torch.optim as optim
 from torch.autograd import Variable, grad
 import torch.nn.functional as F
 import torchvision.utils as vutils
-from bgan.cnnTrainer import CnnTrainer
-from bgan.utils import to_var_gpu, prettyPrintLog
+from oil.cnnTrainer import CnnTrainer
+from oil.utils import to_var_gpu, prettyPrintLog
 import itertools
 
 def _l2_normalize(d):

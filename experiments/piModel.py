@@ -4,11 +4,11 @@ from torch.utils.data import DataLoader
 from torchvision.datasets import CIFAR10
 import torch.nn as nn
 import numpy as np
-from bgan.cnnTrainer import CnnTrainer
-from bgan.networkparts import layer13
-import bgan.augLayers as augLayers
-from bgan.piTrainer import PiTrainer
-from bgan.schedules import cosLr, sigmoidConsRamp
+from oil.cnnTrainer import CnnTrainer
+from oil.networkparts import layer13
+import oil.augLayers as augLayers
+from oil.piTrainer import PiTrainer
+from oil.schedules import cosLr, sigmoidConsRamp
 import torch.optim as optim
 
 
@@ -37,7 +37,7 @@ epochs = int(350)#*(50000/4000)))
 opt_constr = lambda params, base_lr: optim.SGD(params, base_lr, .9, weight_decay=1e-4, nesterov=True)
 lr_lambda = cosLr(epochs, 1)
 
-savedir = '/home/maf388/tb-experiments/mtparamsPIhalved/'
+#savedir = '/home/maf388/tb-experiments/mtparamsPIhalved/'
 config = {'base_lr':.1, 'amntLab':4000, 
           'lab_BS':50, 'ul_BS':50, 'num_workers':2,
           'lr_lambda':lr_lambda, 'opt_constr':opt_constr,

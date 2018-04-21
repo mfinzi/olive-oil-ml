@@ -4,8 +4,8 @@ from torch.utils.data import DataLoader
 import torchvision.datasets as ds
 import torch.nn as nn
 
-from bgan.networkparts import layer13
-import bgan.augLayers as augLayers
+from oil.networkparts import layer13
+import oil.augLayers as augLayers
 
 
 

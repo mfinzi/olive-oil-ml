@@ -5,8 +5,8 @@ import torch.optim as optim
 from torch.autograd import Variable
 import tensorboardX
 from torch.utils.data import DataLoader
-from bgan.dataloaders import getUnlabLoader, getLabLoader
-from bgan.utils import to_var_gpu, prettyPrintLog
+from oil.dataloaders import getUnlabLoader, getLabLoader
+from oil.utils import to_var_gpu, prettyPrintLog
 
 import torch.nn.functional as F
 from torch.nn.parallel.replicate import replicate

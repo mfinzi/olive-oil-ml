@@ -1,10 +1,10 @@
 import torch, torchvision
 import torch.optim as optim
 
-from bgan.cnnTrainer import CnnTrainer
-from bgan.datasets import CIFAR10
-from bgan.networkparts import layer13
-from bgan.schedules import cosLr, sigmoidConsRamp
+from oil.cnnTrainer import CnnTrainer
+from oil.datasets import CIFAR10
+from oil.networkparts import layer13
+from oil.schedules import cosLr, sigmoidConsRamp
 
 total_epochs = 1000
 savedir = '/home/maf388/tb-experiments/layer13ZCA/'
