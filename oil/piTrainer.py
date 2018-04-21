@@ -38,6 +38,4 @@ class PiTrainer(CnnTrainer):
         step = i + epoch*self.numBatchesPerEpoch
         if step%2000==0:
             self.metricLog['Unlab_loss(batch)'] = self.unlabLoss(trainData[1][0]).cpu().data[0]
-            #current_weight = self.hypers['cons_weight'](self.epoch)
-            #self.scheduleLog['cons_weight'] = current_weight
         super().logStuff(i, epoch, numEpochs, trainData)

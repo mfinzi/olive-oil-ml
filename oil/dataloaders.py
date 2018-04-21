@@ -10,34 +10,49 @@ def getUnlabLoader(trainset, ul_BS, **kwargs):
     unlabLoader = DataLoader(trainset,sampler=unlabSampler,batch_size=ul_BS,**kwargs)
     return unlabLoader
 
-def getLabLoader(trainset, amntLabeled, lab_BS, **kwargs):
-    """ returns a dataloader of class balanced subset of the full dataset.
-        AmntLabeled can be a fraction or an integer"""
+def getLabLoader(trainset, lab_BS, amntLabeled=1, amntDev=0, **kwargs):
+    """ returns a dataloader of class balanced subset of the full dataset,
+        and a (possibly empty) dataloader reserved for devset
+        amntLabeled and amntDev can be a fraction or an integer.
+        If fraction amntLabeled specifies fraction of entire dataset to
+        use as labeled, whereas fraction amntDev is fraction of labeled
+        dataset to reserve as a devset  """
     numLabeled = amntLabeled
     if amntLabeled <= 1: 
         numLabeled *= len(trainset)
-    if numLabeled == len(trainset) or numLabeled == 0:
-        labIndices = np.arange(len(trainset))
-    else:
-        labIndices = classBalancedSampleIndices(trainset, numLabeled)
+    numDev = amntDev
+    if amntDev <= 1:
+        numDev *= numLabeled
+
+    labIndices, devIndices = classBalancedSampleIndices(trainset, numLabeled, numDev)
+
     labSampler = ShuffleCycleSubsetSampler(labIndices)
     labLoader = DataLoader(trainset,sampler=labSampler,batch_size=lab_BS,**kwargs)
     if numLabeled == 0: labLoader = EmptyLoader()
-    return labLoader
 
-def classBalancedSampleIndices(trainset, numLabeled):
+    devSampler = SequentialSubsetSampler(devIndices) # No shuffling on dev
+    devLoader = DataLoader(trainset,sampler=devSampler,batch_size=50)
+    return labLoader, devLoader
+
+def classBalancedSampleIndices(trainset, numLabeled, numDev):
     """ Generates a subset of indices of y (of size numLabeled) so that
         each class is equally represented """
     y = np.array([target for img,target in trainset])
     uniqueVals = np.unique(y)
     numLabeled = (numLabeled // len(uniqueVals))*len(uniqueVals)
+    numDev = (numDev // len(uniqueVals))*len(uniqueVals)
+
     classIndices = [np.where(y==val) for val in uniqueVals]
-    sampledIndices = np.empty(numLabeled, dtype=np.int64)
+    labIndices = np.empty(numLabeled, dtype=np.int64)
+    devIndices = np.empty(numDev, dtype=np.int64)
     m = numLabeled // len(uniqueVals) # The Number of Samples per Class
+    dev_m = numDev // len(uniqueVals)
+    lab_m = m-dev_m; assert lab_m>0, "Note: dev is subtracted from train"
     for i in range(len(uniqueVals)):
         sampledclassIndices = np.random.choice(classIndices[i][0],m,replace=False)
-        sampledIndices[i*m:i*m+m] = sampledclassIndices
-    return sampledIndices
+        labIndices[i*lab_m:i*lab_m+lab_m] = sampledclassIndices[:lab_m]
+        devIndices[i*dev_m:i*dev_m+dev_m] = sampledclassIndices[lab_m:]
+    return labIndices, devIndices
 
 class ShuffleCycleSubsetSampler(Sampler):
     """A cycle version of SubsetRandomSampler with
@@ -57,6 +72,15 @@ class ShuffleCycleSubsetSampler(Sampler):
             yield perm[i]
             i+=1
     
+    def __len__(self):
+        return len(self.indices)
+
+class SequentialSubsetSampler(Sampler):
+    """Samples sequentially from specified indices, does not cycle """
+    def __init__(self, indices):
+        self.indices = indices
+    def __iter__(self):
+        return iter(self.indices)
     def __len__(self):
         return len(self.indices)
 

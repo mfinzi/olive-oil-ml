@@ -3,25 +3,24 @@ import numpy as np
 import torch.nn as nn
 import torch.optim as optim
 from torch.autograd import Variable
-import tensorboardX
 from torch.utils.data import DataLoader
 from oil.dataloaders import getUnlabLoader, getLabLoader
 from oil.utils import to_var_gpu, prettyPrintLog
-
+from oil.logging import SummaryWriter
 import torch.nn.functional as F
 from torch.nn.parallel.replicate import replicate
 import copy, os
 
 class CnnTrainer:
     
-    def __init__(self, CNN, datasets, save_dir, load_path=None,
-                base_lr=2e-4, lab_BS=32, ul_BS=32,
-                amntLab=1, num_workers=2, opt_constr=None,
+    def __init__(self, CNN, datasets, save_dir=None, load_path=None,
+                base_lr=2e-4, lab_BS=50, ul_BS=50, amntLab=1, amntDev=0,
+                num_workers=0, opt_constr=None, log=False,
                 extraInit=lambda:None, lr_lambda = lambda e: 1):
 
         # Setup tensorboard logger
         self.save_dir = save_dir
-        self.writer = tensorboardX.SummaryWriter(save_dir)
+        self.writer = SummaryWriter(save_dir, log)
         self.metricLog = {}
         self.scheduleLog = {}
 
@@ -34,12 +33,12 @@ class CnnTrainer:
         self.lr_scheduler = optim.lr_scheduler.LambdaLR(self.optimizer,lr_lambda)
 
         # Setup Dataloaders and Iterators
-        trainset, devset, testset = datasets
+        trainset, testset = datasets
         extraArgs = {'num_workers':num_workers}
         self.unl_train = getUnlabLoader(trainset, ul_BS, **extraArgs)
-        self.lab_train = getLabLoader(trainset,amntLab,lab_BS,**extraArgs)
-        self.dev  = DataLoader(devset, batch_size=64, **extraArgs)
-        self.test = DataLoader(testset, batch_size=64, **extraArgs)
+        self.lab_train, self.dev = \
+            getLabLoader(trainset,lab_BS,amntLab,amntDev,**extraArgs)
+        self.test = DataLoader(testset, batch_size=50, **extraArgs)
         self.train_iter = iter(self.lab_train)
         self.numBatchesPerEpoch = len(self.lab_train)
 
@@ -84,7 +83,8 @@ class CnnTrainer:
         if step%2000==0:
             xy_labeled = self.getLabeledXYonly(trainData)
             self.metricLog['Train_Acc(Batch)'] = self.batchAccuracy(*xy_labeled)
-            self.metricLog['Val_Acc'] = self.getDevsetAccuracy()
+            self.metricLog['Test_Acc'] = self.getAccuracy(self.test)
+            if len(self.dev): self.metricLog['Dev_Acc'] = self.getAccuracy(self.dev)
             self.writer.add_scalars('metrics', self.metricLog, step)
             prettyPrintLog(self.metricLog, epoch, numEpochs, step, numSteps)
 
@@ -105,13 +105,14 @@ class CnnTrainer:
         model.train()
         return correct
     
-    def getDevsetAccuracy(self, model = None):
-        accSum = 0
-        for xy in self.dev:
+    def getAccuracy(self, loader=None, model = None):
+        if loader is None: loader = self.test
+        numCorrect, numTotal = 0, 0
+        for xy in loader:
             xy = to_var_gpu(xy, volatile=True)
-            accSum += self.batchAccuracy(*xy, model=model)
-        acc = accSum / len(self.dev)
-        return acc
+            numCorrect += self.batchAccuracy(*xy, model=model)*xy[1].size(0)
+            numTotal += xy[1].size(0)
+        return numCorrect/numTotal
 
     def save_checkpoint(self, save_dir = None):
         if save_dir is None: save_dir = self.save_dir
@@ -123,6 +124,7 @@ class CnnTrainer:
             'model_state':self.CNN.state_dict(),
             'optim_state':self.optimizer.state_dict(),
             'lab_sampler':self.lab_train.batch_sampler,
+            'dev_sampler':self.dev.batch_sampler,
         } # Saving the sampler for the labeled dataset is crucial
           # so that we use the same subset of data as before
         torch.save(state, filepath)
@@ -135,6 +137,7 @@ class CnnTrainer:
             self.CNN.load_state_dict(state['model_state'])
             self.optimizer.load_state_dict(state['optim_state'])
             self.lab_train.batch_sampler = state['lab_sampler']
+            self.dev.batch_sampler = state['dev_sampler']
         else:
             print("=> no checkpoint found at '{}'".format(load_path))
 
@@ -148,12 +151,26 @@ class CnnTrainer:
 
     ### Methods For performing SWA after regular training is done ####
 
-    def constSWA(self, numEpochs=100, lr=1e-4):
-        """ runs Stochastic Weight Averaging for numEpochs epochs using const lr """
+    def constSWA(self, numEpochs, lr=1e-3, period=1):
+        """ runs Stochastic Weight Averaging for numEpochs epochs using const lr"""
+        # Set the new constant learning rate (scaling)
+        swa_lr_lambda = lambda epoch: lr/self.hypers['base_lr']
+        # update SWA after period epochs
+        startEpoch = self.epoch
+        update_condition = lambda epoch: (epoch-startEpoch)%period==0
+        self.genericSWA(numEpochs, swa_lr_lambda, update_condition)
+
+    def cosineSWA(self, numEpochs, lr=1e-2, period=10):
+        """ runs Stochastic Weight Averaging for numEpochs epochs using cosine lr """
+        # Set the new cosine cycle learning rate (scaling)
+        swa_lr_lambda = lambda epoch: cosLr(period)(epoch)*lr/self.hypers['base_lr']
+        # Only update at the minimum of a cycle
+        update_condition = lambda epoch: swa_lr_lambda(epoch+1) > swa_lr_lambda(epoch)
+        self.genericSWA(numEpochs, swa_lr_lambda, update_condition)
+
+    def genericSWA(self, numEpochs, swa_lr_lambda, update_condition):
         self.initSWA()
-        ## Set the new constant learning rate
-        new_lr_lambda = lambda epoch: lr/self.hypers['base_lr']
-        self.lr_scheduler = optim.lr_scheduler.LambdaLR(self.optimizer,new_lr_lambda)
+        self.lr_scheduler = optim.lr_scheduler.LambdaLR(self.optimizer,swa_lr_lambda)
         startEpoch = self.epoch
         for epoch in range(self.epoch, numEpochs+startEpoch):
             self.lr_scheduler.step(epoch); self.epoch = epoch
@@ -162,10 +179,10 @@ class CnnTrainer:
                 self.step(*trainData)
                 self.swaLogStuff(i, epoch)
                 self.logStuff(i, epoch, numEpochs+startEpoch, trainData)
-            self.updateSWA()
+            if update_condition(epoch): self.updateSWA()
+        self.updateBatchNorm(self.SWA)
         self.CNN.load_state_dict(self.SWA.state_dict())
-        self.updateBatchNorm(self.CNN)
-        
+
     def initSWA(self):
         try: self.SWA
         except AttributeError:
@@ -183,7 +200,9 @@ class CnnTrainer:
         step = i + epoch*self.numBatchesPerEpoch
         if step%2000==0:
             self.updateBatchNorm(self.SWA)
-            self.metricLog['SWA_Val_Acc'] = self.getDevsetAccuracy(self.SWA)
+            self.metricLog['SWA_Test_Acc'] = self.getAccuracy(self.test, model=self.SWA)
+            if len(self.dev): 
+                self.metricLog['SWA_Dev_Acc'] = self.getAccuracy(self.dev, model=self.SWA)
 
     def updateBatchNorm(self, model):
         model.train()
