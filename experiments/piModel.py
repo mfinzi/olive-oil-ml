@@ -13,7 +13,7 @@ from oil.datasets import CIFAR10
 import torch.optim as optim
 
 
-datasets = CIFAR10(aug=False, ZCA=True)
+datasets = CIFAR10(aug=False)
 
 
 

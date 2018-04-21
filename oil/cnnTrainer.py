@@ -137,7 +137,8 @@ class CnnTrainer:
             self.CNN.load_state_dict(state['model_state'])
             self.optimizer.load_state_dict(state['optim_state'])
             self.lab_train.batch_sampler = state['lab_sampler']
-            self.dev.batch_sampler = state['dev_sampler']
+            try: self.dev.batch_sampler = state['dev_sampler']
+            except: print("Older checkpoint, dev loader may be inconsistent")
         else:
             print("=> no checkpoint found at '{}'".format(load_path))
 
