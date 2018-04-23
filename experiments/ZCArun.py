@@ -4,7 +4,7 @@ import torch.optim as optim
 from oil.cnnTrainer import CnnTrainer
 from oil.datasets import CIFAR10
 from oil.networkparts import layer13
-from oil.schedules import cosLr, sigmoidConsRamp
+from oil.schedules import cosLr
 
 total_epochs = 1000
 savedir = '/home/maf388/tb-experiments/layer13newnorm/'

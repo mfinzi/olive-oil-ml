@@ -15,7 +15,7 @@ class CnnTrainer:
     
     def __init__(self, CNN, datasets, save_dir=None, load_path=None,
                 base_lr=2e-4, lab_BS=50, ul_BS=50, amntLab=1, amntDev=0,
-                num_workers=0, opt_constr=None, log=False,
+                num_workers=0, opt_constr=None, log=True,
                 extraInit=lambda:None, lr_lambda = lambda e: 1):
 
         # Setup tensorboard logger
@@ -43,7 +43,7 @@ class CnnTrainer:
         self.numBatchesPerEpoch = len(self.lab_train)
 
         # Init hyperparameter dictionary
-        self.hypers = {'base_lr':base_lr, 'amntLab':amntLab, 
+        self.hypers = {'base_lr':base_lr, 'amntLab':amntLab, 'amntDev':amntDev,
                         'lab_BS':lab_BS, 'ul_BS':ul_BS}
         # Extra work to do (used for subclass)
         extraInit()
@@ -157,7 +157,7 @@ class CnnTrainer:
         # Set the new constant learning rate (scaling)
         swa_lr_lambda = lambda epoch: lr/self.hypers['base_lr']
         # update SWA after period epochs
-        startEpoch = self.epoch
+        startEpoch = self.epoch+1
         update_condition = lambda epoch: (epoch-startEpoch)%period==0
         self.genericSWA(numEpochs, swa_lr_lambda, update_condition)
 
@@ -172,8 +172,8 @@ class CnnTrainer:
     def genericSWA(self, numEpochs, swa_lr_lambda, update_condition):
         self.initSWA()
         self.lr_scheduler = optim.lr_scheduler.LambdaLR(self.optimizer,swa_lr_lambda)
-        startEpoch = self.epoch
-        for epoch in range(self.epoch, numEpochs+startEpoch):
+        startEpoch = self.epoch+1
+        for epoch in range(startEpoch, numEpochs+startEpoch):
             self.lr_scheduler.step(epoch); self.epoch = epoch
             for i in range(self.numBatchesPerEpoch):
                 trainData = to_var_gpu(next(self.train_iter))
@@ -211,3 +211,5 @@ class CnnTrainer:
             tensors = next(self.train_iter)
             trainData = to_var_gpu(tensors, volatile=True)
             out = model(self.getLabeledXYonly(trainData)[0])
+
+

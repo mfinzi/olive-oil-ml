@@ -39,21 +39,26 @@ def classBalancedSampleIndices(trainset, numLabeled, numDev):
         each class is equally represented """
     y = np.array([target for img,target in trainset])
     uniqueVals = np.unique(y)
-    numLabeled = (numLabeled // len(uniqueVals))*len(uniqueVals)
     numDev = (numDev // len(uniqueVals))*len(uniqueVals)
-
+    numLabeled = ((numLabeled-numDev)// len(uniqueVals))*len(uniqueVals)
+    
     classIndices = [np.where(y==val) for val in uniqueVals]
-    labIndices = np.empty(numLabeled, dtype=np.int64)
     devIndices = np.empty(numDev, dtype=np.int64)
-    m = numLabeled // len(uniqueVals) # The Number of Samples per Class
+    labIndices = np.empty(numLabeled, dtype=np.int64)
+    
     dev_m = numDev // len(uniqueVals)
-    lab_m = m-dev_m; assert lab_m>0, "Note: dev is subtracted from train"
+    lab_m = numLabeled // len(uniqueVals); assert lab_m>0, "Note: dev is subtracted from train"
+    total_m = lab_m + dev_m
     for i in range(len(uniqueVals)):
-        sampledclassIndices = np.random.choice(classIndices[i][0],m,replace=False)
+        sampledclassIndices = np.random.choice(classIndices[i][0],total_m,replace=False)
         labIndices[i*lab_m:i*lab_m+lab_m] = sampledclassIndices[:lab_m]
         devIndices[i*dev_m:i*dev_m+dev_m] = sampledclassIndices[lab_m:]
+        
+    print("Creating Train, Dev split \
+        with {} Train and {} Dev".format(numLabeled, numDev))
     return labIndices, devIndices
 
+#TODO: change iter to single pass, add multi_iter method
 class ShuffleCycleSubsetSampler(Sampler):
     """A cycle version of SubsetRandomSampler with
         reordering on restart """
