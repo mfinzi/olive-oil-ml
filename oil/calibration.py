@@ -47,8 +47,10 @@ def max_logit_calib_rule(devlogits, devlabels):
     a = nn.Parameter(torch.ones(1)).cuda()
     b = nn.Parameter(torch.ones(1)).cuda()
     optimizer = optim.LBFGS([a,b], lr=0.01, max_iter=50)
+    _, predictions = torch.max(devlogits, 1)
+    correct = predictions.eq(devlabels)
     def eval_closure():
-        loss = bce_criterion(a*(devlogits-mean)/std + b, devlabels)
+        loss = bce_criterion(a*(devlogits-mean)/std + b, correct)
         loss.backward()
         return loss
     optimizer.step(eval_closure)

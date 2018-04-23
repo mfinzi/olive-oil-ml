@@ -15,7 +15,7 @@ class CnnTrainer:
     
     def __init__(self, CNN, datasets, save_dir=None, load_path=None,
                 base_lr=2e-4, lab_BS=50, ul_BS=50, amntLab=1, amntDev=0,
-                num_workers=0, opt_constr=None, log=True,
+                num_workers=0, opt_constr=None, log=True, description='',
                 extraInit=lambda:None, lr_lambda = lambda e: 1):
 
         # Setup tensorboard logger
@@ -44,7 +44,7 @@ class CnnTrainer:
 
         # Init hyperparameter dictionary
         self.hypers = {'base_lr':base_lr, 'amntLab':amntLab, 'amntDev':amntDev,
-                        'lab_BS':lab_BS, 'ul_BS':ul_BS}
+                        'lab_BS':lab_BS, 'ul_BS':ul_BS, 'description':description}
         # Extra work to do (used for subclass)
         extraInit()
         # Load checkpoint if specified
