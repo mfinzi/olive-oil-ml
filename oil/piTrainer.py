@@ -12,11 +12,13 @@ class PiTrainer(CnnTrainer):
         def initClosure():
             self.hypers.update({'cons_weight':cons_weight,
                                 'rampup_epochs':rampup_epochs})
-            self.train_iter = zip(iter(self.lab_train), iter(self.unl_train))
             self.numBatchesPerEpoch = len(self.unl_train)
             self.consRamp = sigmoidConsRamp(rampup_epochs)
         super().__init__(*args, extraInit = initClosure, **kwargs)
- 
+
+    def getTrainIter(self):
+        return zip(iter(self.lab_train), iter(self.unl_train))
+
     def unlabLoss(self, x_unlab):
         pred1 = self.CNN(x_unlab)
         pred2 = self.CNN(x_unlab)

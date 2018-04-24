@@ -7,6 +7,7 @@ from torch.utils.data import DataLoader
 from oil.dataloaders import getUnlabLoader, getLabLoader
 from oil.utils import to_var_gpu, prettyPrintLog
 from oil.logging import SummaryWriter
+from oil.schedules import cosLr
 import torch.nn.functional as F
 from torch.nn.parallel.replicate import replicate
 import copy, os
@@ -39,7 +40,7 @@ class CnnTrainer:
         self.lab_train, self.dev = \
             getLabLoader(trainset,lab_BS,amntLab,amntDev,**extraArgs)
         self.test = DataLoader(testset, batch_size=50, **extraArgs)
-        self.train_iter = iter(self.lab_train)
+        self.train_iter = self.getTrainIter()
         self.numBatchesPerEpoch = len(self.lab_train)
 
         # Init hyperparameter dictionary
@@ -53,6 +54,8 @@ class CnnTrainer:
         # Log the hyper parameters
         for tag, value in self.hypers.items():
             self.writer.add_text('ModelSpec',tag+' = '+str(value))
+
+    def getTrainIter(self): return iter(self.lab_train)
 
     def train(self, numEpochs=100):
         """ The main training loop called (also for subclasses)"""
@@ -120,7 +123,7 @@ class CnnTrainer:
         os.makedirs(save_path, exist_ok=True)
         filepath = save_path + 'c.{}.ckpt'.format(self.epoch)
         state = {
-            'epoch':self.epoch+1,
+            'epoch':self.epoch,
             'model_state':self.CNN.state_dict(),
             'optim_state':self.optimizer.state_dict(),
             'lab_sampler':self.lab_train.batch_sampler,
@@ -139,6 +142,7 @@ class CnnTrainer:
             self.lab_train.batch_sampler = state['lab_sampler']
             try: self.dev.batch_sampler = state['dev_sampler']
             except: print("Older checkpoint, dev loader may be inconsistent")
+            self.train_iter = self.getTrainIter()
         else:
             print("=> no checkpoint found at '{}'".format(load_path))
 
@@ -185,9 +189,9 @@ class CnnTrainer:
         self.CNN.load_state_dict(self.SWA.state_dict())
 
     def initSWA(self):
+        self.SWAupdates = 0
         try: self.SWA
         except AttributeError:
-            self.SWAupdates = 0
             self.SWA = replicate(self.CNN,[0])[0]
             #set_trainable(self.SWA, False)
 

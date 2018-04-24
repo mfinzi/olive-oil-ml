@@ -23,12 +23,14 @@ class GanTrainer(CnnTrainer):
             self.d_optimizer = opt_constr(self.D.parameters(),base_lr)
             self.g_optimizer = opt_constr(self.G.parameters(),base_lr)
             self.hypers.update({'n_disc':n_disc})
-            self.train_iter = zip(iter(self.lab_train), iter(self.unl_train))
             self.numBatchesPerEpoch = len(self.unl_train)
 
             self.fixed_z = self.sampleZ(32)
         super().__init__(*args, extraInit = initClosure, **kwargs)
         
+    def getTrainIter(self):
+        return zip(iter(self.lab_train), iter(self.unl_train))
+
     def step(self, *data):
         # Step the Generator
         self.d_optimizer.zero_grad()

@@ -36,9 +36,11 @@ class VatCnnTrainer(CnnTrainer):
         def initClosure():
             self.hypers.update(
                 {'regScale':regScale, 'advEps':advEps, 'entMin':entMin})
-            self.train_iter = zip(iter(self.lab_train), iter(self.unl_train))
             self.numBatchesPerEpoch = len(self.unl_train)
         super().__init__(*args, extraInit = initClosure, **kwargs)
+
+    def getTrainIter(self):
+        return zip(iter(self.lab_train), iter(self.unl_train))
 
     def loss(self, *data):
         (x_lab, y_lab), (x_unlab, _) = data
