@@ -27,6 +27,7 @@ def evaluate_ECE(calib_rule, net, testset, n_bins=15):
 def getLogitsAndLabels(net, devset):
     logits_list = []
     labels_list = []
+    net.train(False)
     for xy in devset:
         x,y = to_var_gpu(xy)
         logits_list.append(net(x).detach())
