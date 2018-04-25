@@ -117,11 +117,12 @@ class CnnTrainer:
             numTotal += xy[1].size(0)
         return numCorrect/numTotal
 
-    def save_checkpoint(self, save_dir = None):
-        if save_dir is None: save_dir = self.save_dir
-        save_path = filepath = save_dir + 'checkpoints/'
-        os.makedirs(save_path, exist_ok=True)
-        filepath = save_path + 'c.{}.ckpt'.format(self.epoch)
+    def save_checkpoint(self, save_path = None):
+        if save_path is None: 
+            checkpoint_save_dir = self.save_dir + 'checkpoints/'
+            save_path = checkpoint_save_dir + 'c.{}.ckpt'.format(self.epoch)
+        else:
+            checkpoint_save_dir = os.path.dirname(save_path)
         state = {
             'epoch':self.epoch,
             'model_state':self.CNN.state_dict(),
@@ -130,7 +131,8 @@ class CnnTrainer:
             'dev_sampler':self.dev.batch_sampler,
         } # Saving the sampler for the labeled dataset is crucial
           # so that we use the same subset of data as before
-        torch.save(state, filepath)
+        os.makedirs(checkpoint_save_dir, exist_ok=True)
+        torch.save(state, save_path)
 
     def load_checkpoint(self, load_path):
         if os.path.isfile(load_path):

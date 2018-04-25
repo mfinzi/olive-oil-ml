@@ -29,7 +29,7 @@ def getLogitsAndLabels(net, devset):
     labels_list = []
     for xy in devset:
         x,y = to_var_gpu(xy)
-        logits_list.append(net(x))
+        logits_list.append(net(x).detach())
         labels_list.append(y)
     logits = torch.cat(logits_list)
     labels = torch.cat(labels_list)

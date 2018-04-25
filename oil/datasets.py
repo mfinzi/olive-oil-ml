@@ -9,7 +9,9 @@ from oil.networkparts import layer13
 import oil.augLayers as augLayers
 
 
-def CIFAR10(aug=True):
+def CIFAR10(aug=False):
+    """ aug argument turns on pytorch transform augmentations (randomcrop and horiz flip,
+        however: standard usage in this library is to use layer augmentations"""
     transform_dev = transforms.Compose(
     [transforms.ToTensor(),
     transforms.Normalize((0.4914, 0.4822, 0.4465), (.247,.243,.261))])
