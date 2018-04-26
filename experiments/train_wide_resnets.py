@@ -22,9 +22,9 @@ opt_constr = lambda params, base_lr: optim.SGD(params, base_lr, .9, weight_decay
 lr_lambda = cosLr(total_epochs, 1)
 
 
-savedir = '/home/maf388/tb-experiments/wide_resnet/'
-descr = "wide resnet with layer augs, devset size 5000"
-config = {'base_lr':.1, 'amntLab':1, 'amntDev':5000,
+savedir = None #'/home/maf388/tb-experiments/wide_resnet/'
+descr = "wide resnet with layer augs, devset size 500"
+config = {'base_lr':.1, 'amntLab':1, 'amntDev':500,
           'lab_BS':50, 'ul_BS':50, 'num_workers':4,
           'lr_lambda':lr_lambda, 'opt_constr':opt_constr,
           'description':descr, 'log':False,
@@ -35,13 +35,13 @@ trainer = CnnTrainer(makeCNN(), datasets, None, **config)
 lab_sampler = trainer.lab_train.batch_sampler
 dev_sampler = trainer.dev.batch_sampler
 
-savedirbase = '/home/maf388/tb-experiments/wide_resnets5000dev/'
+savedirbase = '/home/maf388/tb-experiments/wide_resnets500dev/'
 for i in range(5):
     # Construct new CNN and trainer for each network
     trainer = CnnTrainer(makeCNN(), datasets, save_dir=None, **config)
     # Change the dataloaders to those used in the reference (to fix devset)
-    trainer.lab_sampler = lab_sampler
-    trainer.dev_sampler = dev_sampler
+    trainer.lab_train.batch_sampler = lab_sampler
+    trainer.dev.batch_sampler = dev_sampler
     trainer.train_iter = trainer.getTrainIter()
     # Train network i
     trainer.train(total_epochs)
