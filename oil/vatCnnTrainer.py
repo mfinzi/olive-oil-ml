@@ -31,7 +31,7 @@ def cross_ent_withlogits(p_logits,q_logits):
     return -1*(SM(p_logits)*LSM(q_logits)).sum(dim=1).mean(dim=0)
 
 class VatCnnTrainer(CnnTrainer):
-    def __init__(self, *args, regScale=1, advEps=32, entMin=True,
+    def __init__(self, *args, regScale=100, advEps=32, entMin=True,
                      **kwargs):
         def initClosure():
             self.hypers.update(
@@ -57,7 +57,7 @@ class VatCnnTrainer(CnnTrainer):
         r_adv = self.hypers['advEps'] * self.getAdvPert(self.CNN, x_unlab)
         perturbed_logits = self.CNN(x_unlab + r_adv)
         logits = self.CNN(x_unlab).detach()
-        unlabLoss = self.hypers['regScale']*kl_div_withlogits(logits, perturbed_logits)
+        unlabLoss = self.hypers['regScale']*kl_div_withlogits(logits, perturbed_logits)/(self.hypers['advEps'])**2
 
         self.CNN.train(wasTraining)
         return unlabLoss
