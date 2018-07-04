@@ -3,6 +3,7 @@ import torch
 from torch.autograd import Variable, grad
 from torch.distributions import Distribution
 import numbers
+import time
 import torch.nn as nn
 
 def to_var_gpu(x, **kwargs):
@@ -14,6 +15,57 @@ def to_var_gpu(x, **kwargs):
         return type(x)(map(curry, x))
     else: 
         return Variable(x, **kwargs).cuda()
+
+def to_gpu(x, double=False, cpu=False):
+    if x is None:
+        return x
+    if type(x) in [list, tuple]:
+        curry = lambda x: to_gpu(x, double, cpu)
+        return type(x)(map(curry, x))
+    else:
+        if double and x.dtype==torch.float32: x = x.double()
+        if cpu: return x.cpu()
+        return x.to(torch.device("cuda"))
+
+class Eval(object):
+    def __init__(self, model):
+        self.model = model
+    def __enter__(self):
+        self.training_state = self.model.training
+        self.model.train(False)
+    def __exit__(self, *args):
+        self.model.train(self.training_state)
+
+class FixedNumpySeed(object):
+    def __init__(self, seed):
+        self.seed = seed
+    def __enter__(self):
+        self.rng_state = np.random.get_state()
+        np.random.seed(self.seed)
+    def __exit__(self, *args):
+        np.random.set_state(self.rng_state)
+
+class logTimer(object):
+        def __init__(self, mins = 1, timeFrac = 1/10):
+            self.avgLogTime = 0
+            self.numLogs = 0
+            self.lastLogTime = 0
+            self.mins = mins
+            self.timeFrac = timeFrac
+            self.performedLog = False
+        def __enter__(self):
+            timeSinceLog = time.time() - self.lastLogTime
+            self.performedLog = (timeSinceLog>60*self.mins) \
+                                and (self.avgLogTime<=self.timeFrac*timeSinceLog)
+            if self.performedLog: self.lastLogTime = time.time()
+            return self.performedLog
+        def __exit__(self, *args):
+            if self.performedLog:
+                timeSpentLogging = time.time()-self.lastLogTime
+                n = self.numLogs
+                self.avgLogTime = timeSpentLogging/(n+1) + self.avgLogTime*n/(n+1)
+                self.numLogs += 1
+                self.lastLogTime = time.time()
 
 def to_lambda(x):
     """ Turns constants into constant functions """

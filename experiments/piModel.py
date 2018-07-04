@@ -1,42 +1,40 @@
 import torch, torchvision
-import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
-from torchvision.datasets import CIFAR10
+import torch.optim as optim
 import torch.nn as nn
 import numpy as np
+#import oil.augLayers as augLayers
 from oil.cnnTrainer import CnnTrainer
-from oil.networkparts import layer13
-import oil.augLayers as augLayers
 from oil.piTrainer import PiTrainer
-from oil.schedules import cosLr, sigmoidConsRamp
-from oil.datasets import CIFAR10
-import torch.optim as optim
+from oil.datasets import CIFAR10, C10augLayers
+from oil.networkparts import layer13
+from oil.schedules import cosLr, LRSchedulerWithInherit, ASGD
 
+numEpochs = 200
+net_config =        {'numClasses':10}
+opt_config =        {'lr':.1, 'momentum':.9, 'weight_decay':1e-4, 'nesterov':True}
+sched_config =      {'cycle_length':numEpochs,'cycle_mult':1}
+trainer_config =    {'amntLab':4000+5000, 'amntDev':5000,'dataseed':0,
+                    'lab_BS':50, 'ul_BS':50, 'num_workers':4, 'log':True, 
+                    'cons_weight':5,
+                    }
+trainer_config['description'] = "13Layer network, {} dev".format(trainer_config['amntDev'])
+savedir_base = '/home/maf388/tb-experiments/pi/'
 
-datasets = CIFAR10(aug=False)
+def makeArgs(savedir):
+    CNN = layer13(**net_config)
+    fullCNN = nn.Sequential(C10augLayers(),CNN)
+    datasets = CIFAR10(aug=False)
+    opt_constr = lambda params: optim.SGD(params, **opt_config)
+    lr_lambda = cosLr(**sched_config)
+    return (fullCNN, datasets, opt_constr, lr_lambda, savedir)
 
-
-
-epochs = int(350)#*(50000/4000)))
-
-opt_constr = lambda params, base_lr: optim.SGD(params, base_lr, .9, weight_decay=1e-4, nesterov=True)
-lr_lambda = cosLr(epochs, 1)
-
-savedir = None #'/home/maf388/tb-experiments/mtparamsPIhalved/'
-config = {'base_lr':.1, 'amntLab':4000, 
-          'lab_BS':50, 'ul_BS':50, 'num_workers':2,
-          'lr_lambda':lr_lambda, 'opt_constr':opt_constr,
-          'cons_weight':100, 'rampup_epochs':5
-          }
-
-baseCNN = layer13(numClasses=10)
-fullCNN = nn.Sequential(
-    augLayers.RandomTranslate(4),
-    augLayers.RandomHorizontalFlip(),
-    augLayers.GaussianNoise(0.15),
-    baseCNN,
-)
-
-trainer = PiTrainer(fullCNN,datasets,savedir,**config)
-trainer.train(epochs)
-trainer.save_checkpoint()
+cons_weights = np.array([30,3,1,.3,.1,.03])
+acc_list = []
+for i, cweight in enumerate(cons_weights):
+    trainer_config['cons_weight'] = cweight
+    savedir = savedir_base+'c{}/'.format(cweight)
+    trainer = PiTrainer(*makeArgs(savedir), **trainer_config)
+    trainer.train(numEpochs)
+    trainer.save_checkpoint()
+    acc_list.append(trainer.getMetric())
+    torch.save((cons_weights[:i+1],np.array(acc_list)),"tune_cweight.np")

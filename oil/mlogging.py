@@ -1,11 +1,11 @@
-
+import pandas as pd
 
 #TODO: Add pandas datafram logging capability
 class SummaryWriter:
     """ Thin wrapper around tensorboardX summarywriter,
         non tensorboard logging functionality to come
     """ 
-    def __init__(self, save_dir, log=True):
+    def __init__(self, save_dir, log=True, com=5):
         if not log or save_dir is None:
             self.logging = False
             self.tbWriter = None
@@ -13,15 +13,32 @@ class SummaryWriter:
             self.logging = True
             import tensorboardX
             self.tbWriter = tensorboardX.SummaryWriter(save_dir)
-    
+        self.loggingFrame = pd.DataFrame()
+        self.com = 20
+
+    def state_dict(self):
+        return self.loggingFrame
+
+    def load_state_dict(self, data):
+        self.loggingFrame = data
+
+    def __repr__(self):
+        return self.loggingFrame.__repr__()
+    def __str__(self):
+        return self.loggingFrame.__str__()
+
+    def emas(self):
+        return self.loggingFrame.ewm(com=self.com).mean().iloc[-1]
+
     def add_scalar(self, *args, **kwargs):
         if self.logging:
             self.tbWriter.add_scalar(*args, **kwargs)
 
-    def add_scalars(self, *args, **kwargs):
+    def add_scalars(self, name,dic,step, *args, **kwargs):
         if self.logging:
-            self.tbWriter.add_scalars(*args, **kwargs)
-
+            self.tbWriter.add_scalars(name,dic,step,*args, **kwargs)
+        newRow = pd.DataFrame(dic, index = [step])
+        self.loggingFrame = self.loggingFrame.append(newRow)
     def export_scalars_to_json(self, *args, **kwargs):
         if self.logging:
             self.tbWriter.export_scalars_to_json(*args, **kwargs)
