@@ -5,12 +5,15 @@ import torch.optim as optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from oil.dataloaders import getUnlabLoader, getLabLoader
-from oil.utils import to_var_gpu, prettyPrintLog, to_gpu, Eval, FixedNumpySeed, logTimer
+from oil.utils import to_var_gpu, prettyPrintLog, to_gpu
+from oil.utils import Eval, FixedNumpySeed, reconstructor
 from oil.mlogging import SummaryWriter
+from oil.lazyLogger import logTimer
 from oil.schedules import cosLr
 import torch.nn.functional as F
 from torch.nn.parallel.replicate import replicate
 import copy, os, random
+import dill
 
 class CnnTrainer:
     metric = 'Dev_Acc'
@@ -19,8 +22,11 @@ class CnnTrainer:
                 save_dir=None, load_path=None,
                 lab_BS=50, ul_BS=50, amntLab=1, amntDev=0,
                 num_workers=0, log=True, description='',
-                extraInit=lambda:None, dataseed=0):
+                extraInit=lambda:None, dataseed=0, rebuildable=True):
 
+        # Magic method for capturing a closure with this init function
+        self.reconstructor = reconstructor() if rebuildable else None
+        
         # Setup tensorboard logger
         self.save_dir = save_dir
         self.writer = SummaryWriter(save_dir, log)
@@ -58,7 +64,7 @@ class CnnTrainer:
         # Log the hyper parameters
         for tag, value in self.hypers.items():
             self.writer.add_text('ModelSpec',tag+' = '+str(value))
-
+        
     #def getTrainIter(self): return iter(self.lab_train)
 
     def train(self, numEpochs=100):
@@ -86,6 +92,7 @@ class CnnTrainer:
         return loss
 
     def maybeLogStuff(self, *args):
+        """ Uses logTimer to determine whether enough time has passed"""
         try: self.maybeLog
         except AttributeError: self.maybeLog = logTimer()
         with self.maybeLog as performLog:
@@ -131,36 +138,42 @@ class CnnTrainer:
         assert len(self.dev)!=0, "No devset to evaluate on"
         return self.getAccuracy(self.dev)
 
-    def save_checkpoint(self, save_path = None):
-        if save_path is None: 
-            checkpoint_save_dir = self.save_dir + 'checkpoints/'
-            save_path = checkpoint_save_dir + 'c.{}.ckpt'.format(self.epoch)
-        else:
-            checkpoint_save_dir = os.path.dirname(save_path)
+
+    def get_state(self):
         state = {
             'epoch':self.epoch,
             'model_state':self.CNN.state_dict(),
             'optim_state':self.optimizer.state_dict(),
             'logger_state':self.writer.state_dict(),
-            # 'lab_sampler':self.lab_train.batch_sampler,
-            # 'dev_sampler':self.dev.batch_sampler,
-        } # Saving the sampler for the labeled dataset is crucial
+            'reconstructor':self.reconstructor,
+        }
+        return state
+
+    def load_state(self,state):
+        self.epoch = state['epoch']
+        self.CNN.load_state_dict(state['model_state'])
+        self.optimizer.load_state_dict(state['optim_state'])
+        self.writer.load_state_dict(state['logger_state'])
+        self.reconstructor = state['reconstructor']
+
+    def save_checkpoint(self, save_path = None):
+        if save_path is None: 
+            checkpoint_save_dir = self.save_dir + 'checkpoints/'
+            save_path = checkpoint_save_dir + 'c.{}.ckpt'.format(self.epoch)
+            #save_path_all = checkpoint_save_dir + 'c.{}.dump'.format(self.epoch)
+        else:
+            checkpoint_save_dir = os.path.dirname(save_path)
           # so that we use the same subset of data as before
         os.makedirs(checkpoint_save_dir, exist_ok=True)
-        torch.save(state, save_path)
-
+        torch.save(self.get_state(), save_path, pickle_module=dill)
+        # if dump: ## Uses dill to pickle the entire trainer and save it
+        #     with open(save_path_all, 'wb') as f:
+        #         dill.dump(self,f)         
     def load_checkpoint(self, load_path):
         if os.path.isfile(load_path):
             print("=> loading checkpoint '{}'".format(load_path))
-            state = torch.load(load_path)
-            self.epoch = state['epoch']
-            self.CNN.load_state_dict(state['model_state'])
-            self.optimizer.load_state_dict(state['optim_state'])
-            self.writer.load_state_dict(state['logger_state'])
-            # self.lab_train.batch_sampler = state['lab_sampler']
-            # try: self.dev.batch_sampler = state['dev_sampler']
-            # except: print("Older checkpoint, dev loader may be inconsistent")
-            # self.train_iter = self.getTrainIter()
+            state = torch.load(load_path, pickle_module=dill)
+            self.load_state(state)
         else:
             print("=> no checkpoint found at '{}'".format(load_path))
 

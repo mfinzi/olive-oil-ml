@@ -3,4 +3,5 @@ dist
 *.pyc
 __pycache__
 *.np
+*.t
 .ipynb_checkpoints/

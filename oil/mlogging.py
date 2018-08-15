@@ -14,7 +14,7 @@ class SummaryWriter:
             import tensorboardX
             self.tbWriter = tensorboardX.SummaryWriter(save_dir)
         self.loggingFrame = pd.DataFrame()
-        self.com = 20
+        self.com = com
 
     def state_dict(self):
         return self.loggingFrame

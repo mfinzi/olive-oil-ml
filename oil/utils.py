@@ -5,6 +5,10 @@ from torch.distributions import Distribution
 import numbers
 import time
 import torch.nn as nn
+import inspect
+import copy
+import os
+import dill
 
 def to_var_gpu(x, **kwargs):
     """ recursively map the elements to variables on gpu """
@@ -45,27 +49,27 @@ class FixedNumpySeed(object):
     def __exit__(self, *args):
         np.random.set_state(self.rng_state)
 
-class logTimer(object):
-        def __init__(self, mins = 1, timeFrac = 1/10):
-            self.avgLogTime = 0
-            self.numLogs = 0
-            self.lastLogTime = 0
-            self.mins = mins
-            self.timeFrac = timeFrac
-            self.performedLog = False
-        def __enter__(self):
-            timeSinceLog = time.time() - self.lastLogTime
-            self.performedLog = (timeSinceLog>60*self.mins) \
-                                and (self.avgLogTime<=self.timeFrac*timeSinceLog)
-            if self.performedLog: self.lastLogTime = time.time()
-            return self.performedLog
-        def __exit__(self, *args):
-            if self.performedLog:
-                timeSpentLogging = time.time()-self.lastLogTime
-                n = self.numLogs
-                self.avgLogTime = timeSpentLogging/(n+1) + self.avgLogTime*n/(n+1)
-                self.numLogs += 1
-                self.lastLogTime = time.time()
+# class logTimer(object):
+#         def __init__(self, mins = 1, timeFrac = 1/10):
+#             self.avgLogTime = 0
+#             self.numLogs = 0
+#             self.lastLogTime = 0
+#             self.mins = mins
+#             self.timeFrac = timeFrac
+#             self.performedLog = False
+#         def __enter__(self):
+#             timeSinceLog = time.time() - self.lastLogTime
+#             self.performedLog = (timeSinceLog>60*self.mins) \
+#                                 and (self.avgLogTime<=self.timeFrac*timeSinceLog)
+#             if self.performedLog: self.lastLogTime = time.time()
+#             return self.performedLog
+#         def __exit__(self, *args):
+#             if self.performedLog:
+#                 timeSpentLogging = time.time()-self.lastLogTime
+#                 n = self.numLogs
+#                 self.avgLogTime = timeSpentLogging/(n+1) + self.avgLogTime*n/(n+1)
+#                 self.numLogs += 1
+#                 self.lastLogTime = time.time()
 
 def to_lambda(x):
     """ Turns constants into constant functions """
@@ -95,52 +99,168 @@ def logOneMinusSoftmax(x):
     sum_except_exp_x = torch.bmm(resized_sum_except_m, exp_x.unsqueeze(2)).squeeze()
     return torch.log(sum_except_exp_x) - torch.log(sum_exp_x)
 
-def wassersteinLoss(lab_logits, y_lab):
-    one_hots = torch.zeros(*lab_logits.size()).scatter_(1,y_lab, 1.)
-    not_hots = 1 - one_hots
-    good = one_hots*lab_logits / torch.sum(one_hots,dim=0,keepdim=True)
-    bad = not_hots*lab_logits / torch.sum(not_hots,dim=0,keepdim=True)
-    loss_k = torch.sum(good - bad,0)
-    lab_loss = torch.mean(loss_k)
-    return lab_loss
 
-def wassersteinLoss2(logits, labels):
-    #print(labels.unsqueeze(1).size())
-    #print(torch.zeros(*logits.size()).size())
-    one_hots = torch.zeros(*logits.size()).cuda().scatter_(1,labels.unsqueeze(1),1)
-    one_hots = Variable(one_hots.type(torch.cuda.ByteTensor))
-    one_hots = one_hots.type(torch.cuda.ByteTensor)
-    #print(labels[:5])
-    #print(one_hots[:5])
-    correctLogits = torch.mean(torch.masked_select(logits, one_hots))
-    not_hots = Variable((1 - one_hots.data).type(torch.cuda.ByteTensor))
-    incorrectLogits = torch.mean(torch.masked_select(logits, not_hots))
-    return incorrectLogits - correctLogits
+def init_args():
+    frame = inspect.currentframe()
+    outer_frames = inspect.getouterframes(frame)
+    caller_frame = outer_frames[1][0]
+    args =inspect.getargvalues(caller_frame)[-1]
+    args.pop("self")
+    return args
 
-def grad_penalty(x_real,x_fake):
-    beta = torch.rand((x_real.size()[0],1,1,1)).cuda()
-    interpolates = beta * x_real + (1-beta)*x_fake
-    interpolates = Variable(interpolates, requires_grad = True).cuda()
+# Coded by Massimiliano Tomassoli, 2012.
+def genCur(func, unique = True, minArgs = None):
+    """ Generates a 'curried' version of a function. """
+    def g(*myArgs, **myKwArgs):
+        def f(*args, **kwArgs):
+            if args or kwArgs:                  # some more args!
+                # Allocates data to assign to the next 'f'.
+                newArgs = myArgs + args
+                newKwArgs = dict.copy(myKwArgs)
+ 
+                # If unique is True, we don't want repeated keyword arguments.
+                if unique and not kwArgs.keys().isdisjoint(newKwArgs):
+                    raise ValueError("Repeated kw arg while unique = True")
+ 
+                # Adds/updates keyword arguments.
+                newKwArgs.update(kwArgs)
+ 
+                # Checks whether it's time to evaluate func.
+                numArgsIn = len(newArgs) + len(newKwArgs)
+                totalArgs = len(inspect.getfullargspec(func).args)
+                namedArgs = 0 if func.__defaults__ is None else len(func.__defaults__)
+                numArgsRequired = totalArgs - namedArgs
+                if (minArgs is not None and minArgs <= numArgsIn) \
+                    or (minArgs is None and numArgsRequired <= len(newArgs)):
+                    #print(newArgs)
+                    #print(newKwArgs)
+                    return func(*newArgs, **newKwArgs)  # time to evaluate func
+                else:
+                    return g(*newArgs, **newKwArgs)     # returns a new 'f'
+            else:                               # the evaluation was forced
+                return func(*myArgs, **myKwArgs)
+        return f
+    return g
 
-    disc_interpolates = self.discriminator(interpolates)
-    gradients = grad(outputs=disc_interpolates, inputs=interpolates,
-                        grad_outputs=torch.ones(disc_interpolates.size()).cuda(),
-                        create_graph=True, retain_graph=True, only_inputs=True)[0]
-    gradients = gradients.view(gradients.size(0), -1)
+def curry(f,minArgs = None):
+    return genCur(f, True, minArgs)
 
-    gradient_penalty = ((gradients.norm(2,dim=1)-1)**2).mean()
-    return gradient_penalty
+def cur(f, minArgs = None):
+    return genCur(f, True, minArgs)
+ 
+def curr(f, minArgs = None):
+    return genCur(f, False, minArgs)
 
-def grad_penalty2(x, y):
-    beta = torch.rand((x_real.size()[0],1,1,1)).cuda()
-    interpolates = beta * x_real + (1-beta)*x_fake
-    interpolates = Variable(interpolates, requires_grad = True).cuda()
+# Wraps a generator so that calling __iter__ multiple
+#    times produces distinct non-empty generators  
+class multiGen(object):
+    def __init__(self, generator_constructor):
+        self._gen = generator_constructor
+    def __iter__(self):
+        return self._gen()
+    def __len__(self):
+        return len(self._gen())
 
-    disc_interpolates = self.discriminator(interpolates)
-    gradients = grad(outputs=disc_interpolates, inputs=interpolates,
-                        grad_outputs=torch.ones(disc_interpolates.size()).cuda(),
-                        create_graph=True, retain_graph=True, only_inputs=True)[0]
-    gradients = gradients.view(gradients.size(0), -1)
+def dillcopy(obj):
+    return dill.loads(dill.dumps(obj))
 
-    gradient_penalty = ((gradients.norm(2,dim=1)-1)**2).mean()
-    return gradient_penalty
+## Super hacky method to that returns a method that constructs the same object
+## as the object constructed when this is called in an __init__ method of a base
+## class
+def reconstructor():
+    frame = inspect.currentframe()
+    outer_frames = inspect.getouterframes(frame)
+    subclass_depth=-1
+    while inspect.getframeinfo(outer_frames[subclass_depth+2][0])[2]=='__init__':
+        subclass_caller_frame = outer_frames[subclass_depth+2][0]
+        subclass_depth +=1
+        
+    assert subclass_depth >=0, "Not called in an __init__ method"
+    #print("subclass depth = {}".format(subclass_depth))
+    argnames,varargname,keywordname,localss = inspect.getargvalues(subclass_caller_frame)
+    args_in = {k:v for k,v in localss.items() if k in argnames}
+    cls = args_in.pop("self").__class__
+    args_in_copy = dillcopy(args_in)
+    
+    args = dillcopy(localss[varargname]) if varargname is not None else None
+    kwargs = dillcopy(localss[keywordname]) if keywordname is not None else {}
+    kwargs.update(args_in_copy)
+    
+    if args is not None: return lambda **newKwArgs: cls(*args,**dict(kwargs,**newKwArgs))
+    else: return lambda **newKwArgs: cls(**dict(kwargs,**newKwArgs))
+
+def make_like(reconstructible):
+    if isinstance(reconstructible, str):
+        load_path = reconstructible
+        if os.path.isfile(load_path):
+            state = torch.load(load_path, pickle_module=dill)
+            return state['reconstructor'](rebuildable=False)
+        else:
+            print("=> no checkpoint found at '{}'".format(load_path))
+    else: #Then it is a live object
+        return reconstructible.reconstructor(rebuildable=False)
+
+def full_load(reconstructible):
+    if isinstance(reconstructible, str):
+        load_path = reconstructible
+        if os.path.isfile(load_path):
+            state = torch.load(load_path, pickle_module=dill)
+            model = state['reconstructor'](rebuildable=False)
+            model.load_state(state)
+            return 
+        else:
+            print("=> no checkpoint found at '{}'".format(load_path))
+    else:
+        model = reconstructible.reconstructor(rebuildable=False)
+        model.load_state(model.get_state())
+
+
+# def wassersteinLoss(lab_logits, y_lab):
+#     one_hots = torch.zeros(*lab_logits.size()).scatter_(1,y_lab, 1.)
+#     not_hots = 1 - one_hots
+#     good = one_hots*lab_logits / torch.sum(one_hots,dim=0,keepdim=True)
+#     bad = not_hots*lab_logits / torch.sum(not_hots,dim=0,keepdim=True)
+#     loss_k = torch.sum(good - bad,0)
+#     lab_loss = torch.mean(loss_k)
+#     return lab_loss
+
+# def wassersteinLoss2(logits, labels):
+#     #print(labels.unsqueeze(1).size())
+#     #print(torch.zeros(*logits.size()).size())
+#     one_hots = torch.zeros(*logits.size()).cuda().scatter_(1,labels.unsqueeze(1),1)
+#     one_hots = Variable(one_hots.type(torch.cuda.ByteTensor))
+#     one_hots = one_hots.type(torch.cuda.ByteTensor)
+#     #print(labels[:5])
+#     #print(one_hots[:5])
+#     correctLogits = torch.mean(torch.masked_select(logits, one_hots))
+#     not_hots = Variable((1 - one_hots.data).type(torch.cuda.ByteTensor))
+#     incorrectLogits = torch.mean(torch.masked_select(logits, not_hots))
+#     return incorrectLogits - correctLogits
+
+# def grad_penalty(x_real,x_fake):
+#     beta = torch.rand((x_real.size()[0],1,1,1)).cuda()
+#     interpolates = beta * x_real + (1-beta)*x_fake
+#     interpolates = Variable(interpolates, requires_grad = True).cuda()
+
+#     disc_interpolates = self.discriminator(interpolates)
+#     gradients = grad(outputs=disc_interpolates, inputs=interpolates,
+#                         grad_outputs=torch.ones(disc_interpolates.size()).cuda(),
+#                         create_graph=True, retain_graph=True, only_inputs=True)[0]
+#     gradients = gradients.view(gradients.size(0), -1)
+
+#     gradient_penalty = ((gradients.norm(2,dim=1)-1)**2).mean()
+#     return gradient_penalty
+
+# def grad_penalty2(x, y):
+#     beta = torch.rand((x_real.size()[0],1,1,1)).cuda()
+#     interpolates = beta * x_real + (1-beta)*x_fake
+#     interpolates = Variable(interpolates, requires_grad = True).cuda()
+
+#     disc_interpolates = self.discriminator(interpolates)
+#     gradients = grad(outputs=disc_interpolates, inputs=interpolates,
+#                         grad_outputs=torch.ones(disc_interpolates.size()).cuda(),
+#                         create_graph=True, retain_graph=True, only_inputs=True)[0]
+#     gradients = gradients.view(gradients.size(0), -1)
+
+#     gradient_penalty = ((gradients.norm(2,dim=1)-1)**2).mean()
+#     return gradient_penalty
