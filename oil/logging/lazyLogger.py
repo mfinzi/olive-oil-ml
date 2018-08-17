@@ -2,13 +2,15 @@ import pandas as pd
 import time
 
 class LogTimer(object):
-        def __init__(self, minPeriod = 1, timeFrac = 1/10):
+        def __init__(self, minPeriod = 1, timeFrac = 1/10, **kwargs):
             self.avgLogTime = 0
             self.numLogs = 0
             self.lastLogTime = 0
             self.minPeriod = minPeriod #(measured in minutes)
             self.timeFrac = timeFrac
             self.performedLog = False
+            super().__init__(**kwargs)
+
         def __enter__(self):
             """ returns yes iff the number of minutes have elapsed > minPeriod 
                 and  > (1/timeFrac) * average time it takes to log """
@@ -17,6 +19,7 @@ class LogTimer(object):
                                 and (timeSinceLog > self.avgLogTime/self.timeFrac)
             if self.performedLog: self.lastLogTime = time.time()
             return self.performedLog
+
         def __exit__(self, *args):
             if self.performedLog:
                 timeSpentLogging = time.time()-self.lastLogTime
@@ -32,32 +35,30 @@ class Silent(object):
             return (lambda *args, **kwargs:None)
 try: 
     import tensorboardX
-    maybeTbWriter = tensorboardX.SummaryWriter
+    MaybeTbWriter = tensorboardX.SummaryWriter
 except ModuleNotFoundError: 
-    maybeTbWriter = Silent
+    MaybeTbWriter = Silent
 
-class LazyLogger(maybeTbWriter):
+class LazyLogger(LogTimer, MaybeTbWriter):
     """ Thin wrapper around tensorboardX summarywriter,
         non tensorboard logging functionality to come
     """ 
-    def __init__(self, log_dir = None, ema_com=5, min_period=1, time_frac = .1):
+    def __init__(self, log_dir = None, ema_com=5, **kwargs):
         self.text = {}
         self.constants = {}
         self.scalarFrame = pd.DataFrame()
         self.com = 20
-        self.log_timer = LogTimer()
-        super().__init__(log_dir)
+        self._log_dir = log_dir
+        super().__init__(log_dir=log_dir, **kwargs)
 
-    def maybe_do(self, log_func, *args, force=False, **kwargs):
-        """ Executes log_func, passing in *args and **kwargs if
-            sufficient time has passed since the previous log
-            (as determined by LogTimer)"""
-        if force: return log_func(*args, **kwargs)
-        with self.log_timer as performLog:
-            if performLog: return log_func(*args, **kwargs)
+    @property # Needs to be read only
+    def log_dir(self):
+        return self._log_dir
 
     def emas(self):
-        return self.loggingFrame.ewm(com=self.com).mean().iloc[-1]
+        """ Returns the exponential moving average of the logged
+            scalars (not consts) """
+        return self.scalarFrame.ewm(com=self.com).mean().iloc[-1:]
 
     def add_text(self, tag, text_string):
         try: self.text[tag].add(text_string)
@@ -76,20 +77,21 @@ class LazyLogger(maybeTbWriter):
         else:
             i = step if step is not None else walltime
             newRow = pd.DataFrame(dic, index = [i])
-            self.scalarFrame = self.loggingFrame.append(newRow)
-            super().add_scalars(tag, dic,step,walltime)
+            self.scalarFrame = self.scalarFrame.combine_first(newRow)
+            super().add_scalars(tag, dic, step)#, walltime=walltime) #TODO: update tensorboardX?
 
     def state_dict(self):
         # Will there be a problem with pickling the log_timer here?
         return {'text':self.text,'constants':self.constants,
-                'scalarFrame':self.scalarFrame,'log_timer':self.log_timer}
+                'scalarFrame':self.scalarFrame}
 
     def load_state_dict(self, state):
         self.text = state['text']
         self.constants = state['constants']
         self.scalarFrame = state['scalarFrame']
-        self.log_timer = state['log_timer']
+        #self.log_timer = state['log_timer']
 
     def __str__(self):
-        return "{} object with text: {}, constants: {}, scalarFrame: {}".format(
-            self.__class__,self.text,self.constants,self.scalarFrame)
+        return "{} object with text: {}, constants: {}, scalarFrame: {}.\n\
+            logging in directory: {}".format(
+            self.__class__,self.text,self.constants,self.scalarFrame,self.log_dir)

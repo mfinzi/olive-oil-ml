@@ -1,7 +1,5 @@
 import numpy as np
 import torch
-from torch.autograd import Variable, grad
-from torch.distributions import Distribution
 import numbers
 import time
 import torch.nn as nn
@@ -10,26 +8,45 @@ import copy
 import os
 import dill
 
-def to_var_gpu(x, **kwargs):
-    """ recursively map the elements to variables on gpu """
-    if x is None: 
-        return x
-    if type(x) in [list, tuple]:
-        curry = lambda x: to_var_gpu(x, **kwargs)
-        return type(x)(map(curry, x))
-    else: 
-        return Variable(x, **kwargs).cuda()
+class map_with_len(object):
+    def __init__(self, func, iter_with_len):
+        self._func = func
+        self._iter = iter_with_len
+    def __iter__(self):
+        return map(self._func, self._iter)
+    def __len__(self):
+        return len(self._iter)
 
-def to_gpu(x, double=False, cpu=False):
-    if x is None:
-        return x
-    if type(x) in [list, tuple]:
-        curry = lambda x: to_gpu(x, double, cpu)
-        return type(x)(map(curry, x))
-    else:
-        if double and x.dtype==torch.float32: x = x.double()
-        if cpu: return x.cpu()
-        return x.to(torch.device("cuda"))
+def loader_to(device):
+    """Returns a function that sends dataloader output
+         to the specified device"""
+    def minibatch_map(mb):
+        try: return mb.to(device)
+        except AttributeError: 
+            return type(mb)(map(lambda x:x.to(device),mb))
+    return lambda loader: map_with_len(minibatch_map, loader)
+
+## Depreciated methods for performing to_gpu
+# def to_var_gpu(x, **kwargs):
+#     """ recursively map the elements to variables on gpu """
+#     if x is None: 
+#         return x
+#     if type(x) in [list, tuple]:
+#         curry = lambda x: to_var_gpu(x, **kwargs)
+#         return type(x)(map(curry, x))
+#     else: 
+#         return Variable(x, **kwargs).cuda()
+
+# def to_gpu(x, double=False, cpu=False):
+#     if x is None:
+#         return x
+#     if type(x) in [list, tuple]:
+#         curry = lambda x: to_gpu(x, double, cpu)
+#         return type(x)(map(curry, x))
+#     else:
+#         if double and x.dtype==torch.float32: x = x.double()
+#         if cpu: return x.cpu()
+#         return x.to(torch.device("cuda"))
 
 class Eval(object):
     def __init__(self, model):
@@ -49,6 +66,18 @@ class FixedNumpySeed(object):
     def __exit__(self, *args):
         np.random.set_state(self.rng_state)
 
+def cosLr(cycle_length, cycle_mult=1):
+    def lrSched(epoch):
+        r = cycle_mult + 1e-8
+        L = cycle_length #base
+        current_cycle = np.floor(np.log(1+(r-1)*epoch/L)/np.log(r))
+        current_cycle_length = L*r**current_cycle
+        cycle_iter = epoch - L*(r**current_cycle - 1)/(r-1)
+        cos_scale = .5*(1 + np.cos(np.pi*cycle_iter/current_cycle_length))
+        return cos_scale
+    return lrSched
+
+# Now part of LazyLogger.py in logging
 # class logTimer(object):
 #         def __init__(self, mins = 1, timeFrac = 1/10):
 #             self.avgLogTime = 0
@@ -94,7 +123,7 @@ def logOneMinusSoftmax(x):
     sum_exp_x = exp_x.sum(1).unsqueeze(1).expand_as(exp_x)
     k = x.size()[1]
     batch_size = x.size()[0]
-    sum_except_matrix = Variable((torch.ones(k,k) - torch.eye(k)).cuda())
+    sum_except_matrix = (torch.ones(k,k) - torch.eye(k)).cuda()
     resized_sum_except_m = sum_except_matrix.squeeze(0).expand(batch_size,k,k)
     sum_except_exp_x = torch.bmm(resized_sum_except_m, exp_x.unsqueeze(2)).squeeze()
     return torch.log(sum_except_exp_x) - torch.log(sum_exp_x)
@@ -213,54 +242,3 @@ def full_load(reconstructible):
     else:
         model = reconstructible.reconstructor(rebuildable=False)
         model.load_state(model.get_state())
-
-
-# def wassersteinLoss(lab_logits, y_lab):
-#     one_hots = torch.zeros(*lab_logits.size()).scatter_(1,y_lab, 1.)
-#     not_hots = 1 - one_hots
-#     good = one_hots*lab_logits / torch.sum(one_hots,dim=0,keepdim=True)
-#     bad = not_hots*lab_logits / torch.sum(not_hots,dim=0,keepdim=True)
-#     loss_k = torch.sum(good - bad,0)
-#     lab_loss = torch.mean(loss_k)
-#     return lab_loss
-
-# def wassersteinLoss2(logits, labels):
-#     #print(labels.unsqueeze(1).size())
-#     #print(torch.zeros(*logits.size()).size())
-#     one_hots = torch.zeros(*logits.size()).cuda().scatter_(1,labels.unsqueeze(1),1)
-#     one_hots = Variable(one_hots.type(torch.cuda.ByteTensor))
-#     one_hots = one_hots.type(torch.cuda.ByteTensor)
-#     #print(labels[:5])
-#     #print(one_hots[:5])
-#     correctLogits = torch.mean(torch.masked_select(logits, one_hots))
-#     not_hots = Variable((1 - one_hots.data).type(torch.cuda.ByteTensor))
-#     incorrectLogits = torch.mean(torch.masked_select(logits, not_hots))
-#     return incorrectLogits - correctLogits
-
-# def grad_penalty(x_real,x_fake):
-#     beta = torch.rand((x_real.size()[0],1,1,1)).cuda()
-#     interpolates = beta * x_real + (1-beta)*x_fake
-#     interpolates = Variable(interpolates, requires_grad = True).cuda()
-
-#     disc_interpolates = self.discriminator(interpolates)
-#     gradients = grad(outputs=disc_interpolates, inputs=interpolates,
-#                         grad_outputs=torch.ones(disc_interpolates.size()).cuda(),
-#                         create_graph=True, retain_graph=True, only_inputs=True)[0]
-#     gradients = gradients.view(gradients.size(0), -1)
-
-#     gradient_penalty = ((gradients.norm(2,dim=1)-1)**2).mean()
-#     return gradient_penalty
-
-# def grad_penalty2(x, y):
-#     beta = torch.rand((x_real.size()[0],1,1,1)).cuda()
-#     interpolates = beta * x_real + (1-beta)*x_fake
-#     interpolates = Variable(interpolates, requires_grad = True).cuda()
-
-#     disc_interpolates = self.discriminator(interpolates)
-#     gradients = grad(outputs=disc_interpolates, inputs=interpolates,
-#                         grad_outputs=torch.ones(disc_interpolates.size()).cuda(),
-#                         create_graph=True, retain_graph=True, only_inputs=True)[0]
-#     gradients = gradients.view(gradients.size(0), -1)
-
-#     gradient_penalty = ((gradients.norm(2,dim=1)-1)**2).mean()
-#     return gradient_penalty

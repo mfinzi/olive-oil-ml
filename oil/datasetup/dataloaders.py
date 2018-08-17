@@ -1,6 +1,7 @@
 import numpy as np
+from ..utils.utils import FixedNumpySeed
 from torch.utils.data import DataLoader
-from torch.utils.data.sampler import Sampler
+from torch.utils.data.sampler import Sampler, SubsetRandomSampler
 
 
 def getUnlabLoader(trainset, ul_BS, **kwargs):
@@ -10,23 +11,23 @@ def getUnlabLoader(trainset, ul_BS, **kwargs):
     unlabLoader = DataLoader(trainset,sampler=unlabSampler,batch_size=ul_BS,**kwargs)
     return unlabLoader
 
-def getLabLoader(trainset, lab_BS, amntLabeled=1, amntDev=0, **kwargs):
+def getLabLoader(trainset, lab_BS, amnt_labeled=1, amnt_dev=0, dataseed=0,**kwargs):
     """ returns a dataloader of class balanced subset of the full dataset,
         and a (possibly empty) dataloader reserved for devset
         amntLabeled and amntDev can be a fraction or an integer.
         If fraction amntLabeled specifies fraction of entire dataset to
         use as labeled, whereas fraction amntDev is fraction of labeled
         dataset to reserve as a devset  """
-    numLabeled = amntLabeled
-    if amntLabeled <= 1: 
+    numLabeled = amnt_labeled
+    if amnt_labeled <= 1: 
         numLabeled *= len(trainset)
-    numDev = amntDev
-    if amntDev <= 1:
+    numDev = amnt_dev
+    if amnt_dev <= 1:
         numDev *= numLabeled
+    with FixedNumpySeed(dataseed):
+        labIndices, devIndices = classBalancedSampleIndices(trainset, numLabeled, numDev)
 
-    labIndices, devIndices = classBalancedSampleIndices(trainset, numLabeled, numDev)
-
-    labSampler = ShuffleCycleSubsetSampler(labIndices)
+    labSampler = SubsetRandomSampler(labIndices)
     labLoader = DataLoader(trainset,sampler=labSampler,batch_size=lab_BS,**kwargs)
     if numLabeled == 0: labLoader = EmptyLoader()
 
@@ -58,13 +59,15 @@ def classBalancedSampleIndices(trainset, numLabeled, numDev):
         with {} Train and {} Dev".format(numLabeled, numDev))
     return labIndices, devIndices
 
-#TODO: change iter to single pass, add multi_iter method
+#TODO: Needs some rework to function properly in the semisupervised case
+
 class ShuffleCycleSubsetSampler(Sampler):
     """A cycle version of SubsetRandomSampler with
         reordering on restart """
     def __init__(self, indices):
+        raise NotImplementedError
         self.indices = indices
-
+    
     def __iter__(self):
         return self._gen()
 

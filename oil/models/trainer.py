@@ -1,25 +1,27 @@
+import torch, dill
 from torch import optim
-from .lazyLogger import LazyLogger
-from .utils import reconstructor
+from ..logging.lazyLogger import LazyLogger
+from ..utils.utils import Eval
+from ..utils.mytqdm import tqdm
 import copy, os, random
 
-class Trainer(object):
 
+
+
+class Trainer(object):
+    """
+        """
     def __init__(self, model, dataloaders, 
                 opt_constr=optim.Adam, lr_sched = lambda e: 1, 
-                log_dir=None, log_args={},
-                amnt_lab=1, amnt_dev=0, description='',
-                extraInit=lambda:None, data_seed=0, rebuildable=True):
+                log_dir=None, log_args={}, description='',
+                extraInit=lambda:None):
 
         # Setup model, optimizer, and dataloaders
         self.model = model
         self.optimizer = opt_constr(self.model.parameters())
         try: self.lr_scheduler = lr_sched(self.optimizer)
         except: self.lr_scheduler = optim.lr_scheduler.LambdaLR(self.optimizer,lr_sched)
-        if isinstance(dataloaders,(tuple,list)):
-            self.train_iter = dataloaders[0]
-        else:  
-            self.train_iter = dataloaders
+        self.dataloaders = dataloaders # A dictionary of dataloaders
         self.epoch = 0
 
         self.logger = LazyLogger(log_dir, **log_args)
@@ -28,36 +30,43 @@ class Trainer(object):
         # Extra work to do (used for subclass)
         extraInit()
         # Log the hyper parameters
-        for tag, value in self.hypers.items():
-            self.logger.add_text('ModelSpec',tag+' = '+str(value))
-        # Magic method for capturing a closure with this init function
-        self.reconstructor = reconstructor() if rebuildable else None
+        self.logger.add_scalars('ModelSpec', self.hypers)
 
     def train_to(self, final_epoch=100):
         self.train(final_epoch-self.epoch)
 
     def train(self, num_epochs=100):
-        """ The main training loop called (also for subclasses)"""
+        """ The main training loop"""
         start_epoch = self.epoch
-        for self.epoch in range(start_epoch, start_epoch + num_epochs):
+        for self.epoch in tqdm(range(start_epoch, start_epoch + num_epochs)):
             self.lr_scheduler.step(self.epoch)
-            for i, train_data in enumerate(self.train_iter):
-                self.step(*train_data)
-                self.logger.maybe_do(self.logStuff,
-                        *(i,self.epoch,start_epoch+num_epochs,train_data))
+            for i, minibatch in enumerate(tqdm(self.dataloaders['train'])):
+                self.step(*minibatch)
+                with self.logger as do_log:
+                    if do_log: self.logStuff(i, minibatch)
 
-    def step(self, *data):
+    def step(self, *minibatch):
         self.optimizer.zero_grad()
-        loss = self.loss(*data)
+        loss = self.loss(*minibatch)
         loss.backward()
         self.optimizer.step()
+        return loss
 
-    def loss(self, *data):
-        """ Takes in a minibatch of data """
+    def loss(self, *minibatch):
+        """ Takes in a minibatch of data and outputs the loss"""
         raise NotImplementedError
     
-    def logStuff(self, *args):
-        raise NotImplementedError
+    def logStuff(self, *args, **kwargs):
+        print(self.logger.emas())
+    
+    def getAverageLoss(self, loader):
+        loss_sum, num_total = 0, 0
+        with Eval(self.model), torch.no_grad():
+            for minibatch in loader:
+                mb_size = minibatch[1].size(0)
+                loss_sum += self.loss(*minibatch).cpu().data.numpy()
+                num_total += mb_size
+        return loss_sum/num_total
 
     def state_dict(self):
         state = {
@@ -65,7 +74,6 @@ class Trainer(object):
             'model_state':self.model.state_dict(),
             'optim_state':self.optimizer.state_dict(),
             'logger_state':self.logger.state_dict(),
-            'reconstructor':self.reconstructor,
         }
         return state
 
@@ -74,11 +82,10 @@ class Trainer(object):
         self.model.load_state_dict(state['model_state'])
         self.optimizer.load_state_dict(state['optim_state'])
         self.logger.load_state_dict(state['logger_state'])
-        self.reconstructor = state['reconstructor']
 
     def save_checkpoint(self, save_path = None):
         if save_path is None: 
-            checkpoint_save_dir = self.logger.get_dir() + 'checkpoints/'
+            checkpoint_save_dir = self.logger.log_dir + 'checkpoints/'
             save_path = checkpoint_save_dir + 'c.{}.ckpt'.format(self.epoch)
             #save_path_all = checkpoint_save_dir + 'c.{}.dump'.format(self.epoch)
         else:

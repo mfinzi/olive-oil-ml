@@ -4,12 +4,10 @@ from torch.utils.data import DataLoader
 import torchvision.datasets as ds
 import torch.nn as nn
 import numpy as np
-
-from oil.networkparts import layer13
-import oil.augLayers as augLayers
+from . import augLayers
 
 
-def CIFAR10(aug=False):
+def CIFAR10(aug=False,path_to_dataset='/scratch/datasets/cifar10/'):
     """ aug argument turns on pytorch transform augmentations (randomcrop and horiz flip,
         however: standard usage in this library is to use layer augmentations"""
     transform_dev = transforms.Compose(
@@ -22,9 +20,8 @@ def CIFAR10(aug=False):
             transform_dev])
     else: transform_train = transform_dev
     
-    pathToDataset = '/scratch/datasets/cifar10/'
-    trainset = ds.CIFAR10(pathToDataset, download=True, transform=transform_train)
-    testset = ds.CIFAR10(pathToDataset, train=False, download=True, transform=transform_dev)
+    trainset = ds.CIFAR10(path_to_dataset, download=True, transform=transform_train)
+    testset = ds.CIFAR10(path_to_dataset, train=False, download=True, transform=transform_dev)
     return (trainset, testset)
 
 def C10augLayers():
