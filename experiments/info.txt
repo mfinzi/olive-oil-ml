@@ -1,0 +1,94 @@
+Files already downloaded and verified
+Files already downloaded and verified
+Creating Train, Dev split         with 45000 Train and 5000 Dev
+Files already downloaded and verified
+Files already downloaded and verified
+Creating Train, Dev split         with 45000 Train and 5000 Dev
+[  1/5][   705/3520] Dev_Acc: 0.100 Test_Acc: 0.100 Train_Acc(Batch): 0.141 lr: 0.100 
+[  1/5][  1408/7035] Dev_Acc: 0.100 Test_Acc: 0.100 Train_Acc(Batch): 0.281 lr: 0.100 
+[  2/5][  3863/7035] Dev_Acc: 0.328 Test_Acc: 0.327 Train_Acc(Batch): 0.429 lr: 0.095 
+Setting up ray server on 3 gpus
+Process STDOUT and STDERR is being redirected to /tmp/raylogs/.
+Waiting for redis server at 127.0.0.1:31078 to respond...
+Waiting for redis server at 127.0.0.1:44581 to respond...
+Starting local scheduler with the following resources: {'GPU': 3, 'CPU': 40}.
+
+======================================================================
+View the web UI at http://localhost:8888/notebooks/ray_ui29751.ipynb?token=424b21711df7591ab7fc9d955846156d85dd2b73a5aa13e5
+======================================================================
+
+WARNING: python-snappy not available, disabling sample compression
+== Status ==
+Using FIFO scheduling algorithm.
+Result logdir: /scratch/maf388/ray_results/baseline
+PENDING trials:
+ - tunable_0_lab_BS=64,weight_decay=1.3257e-05:	PENDING
+ - tunable_1_lab_BS=32,weight_decay=0.00066706:	PENDING
+
+Created LogSyncer for /scratch/maf388/ray_results/baseline/tunable_0_lab_BS=64,weight_decay=1.3257e-05_2018-06-13_18-45-59b1xt8_k0 -> 
+WARNING: Serializing objects of type <class 'ray.tune.registry._Registry'> by expanding them as dictionaries of their fields. This behavior may be incorrect in some cases.
+== Status ==
+Using FIFO scheduling algorithm.
+Resources used: 4/40 CPUs, 1/3 GPUs
+Result logdir: /scratch/maf388/ray_results/baseline
+PENDING trials:
+ - tunable_1_lab_BS=32,weight_decay=0.00066706:	PENDING
+RUNNING trials:
+ - tunable_0_lab_BS=64,weight_decay=1.3257e-05:	RUNNING
+
+Created LogSyncer for /scratch/maf388/ray_results/baseline/tunable_1_lab_BS=32,weight_decay=0.00066706_2018-06-13_18-45-595uxzq_v4 -> 
+TrainingResult for tunable_0_lab_BS=64,weight_decay=1.3257e-05:
+  date: 2018-06-13_18-52-50
+  done: true
+  experiment_id: f046b2da36a04f9b9926934fc9e21593
+  hostname: en-cs-nikola-compute07
+  mean_validation_accuracy: 0.4250080856123663
+  node_ip: 128.253.51.116
+  pid: 196310
+  time_this_iter_s: 128.1373724937439
+  time_total_s: 128.1373724937439
+  timestamp: 1528930370
+  timesteps_this_iter: 5
+  timesteps_total: 5
+  training_iteration: 1
+  
+== Status ==
+Using FIFO scheduling algorithm.
+Resources used: 4/40 CPUs, 1/3 GPUs
+Result logdir: /scratch/maf388/ray_results/baseline
+RUNNING trials:
+ - tunable_1_lab_BS=32,weight_decay=0.00066706:	RUNNING
+TERMINATED trials:
+ - tunable_0_lab_BS=64,weight_decay=1.3257e-05:	TERMINATED [pid=196310], 128 s, 5 ts
+
+TrainingResult for tunable_1_lab_BS=32,weight_decay=0.00066706:
+  date: 2018-06-13_18-53-47
+  done: true
+  experiment_id: 81faa227c6c2495da4dd5a46438df892
+  hostname: en-cs-nikola-compute07
+  mean_validation_accuracy: 0.4444804270636922
+  node_ip: 128.253.51.116
+  pid: 196319
+  time_this_iter_s: 184.43499898910522
+  time_total_s: 184.43499898910522
+  timestamp: 1528930427
+  timesteps_this_iter: 5
+  timesteps_total: 5
+  training_iteration: 1
+  
+== Status ==
+Using FIFO scheduling algorithm.
+Resources used: 0/40 CPUs, 0/3 GPUs
+Result logdir: /scratch/maf388/ray_results/baseline
+TERMINATED trials:
+ - tunable_0_lab_BS=64,weight_decay=1.3257e-05:	TERMINATED [pid=196310], 128 s, 5 ts
+ - tunable_1_lab_BS=32,weight_decay=0.00066706:	TERMINATED [pid=196319], 184 s, 5 ts
+
+== Status ==
+Using FIFO scheduling algorithm.
+Resources used: 0/40 CPUs, 0/3 GPUs
+Result logdir: /scratch/maf388/ray_results/baseline
+TERMINATED trials:
+ - tunable_0_lab_BS=64,weight_decay=1.3257e-05:	TERMINATED [pid=196310], 128 s, 5 ts
+ - tunable_1_lab_BS=32,weight_decay=0.00066706:	TERMINATED [pid=196319], 184 s, 5 ts
+

@@ -9,7 +9,7 @@ import copy, os, random
 
 
 class Trainer(object):
-    """
+    """ Base trainer
         """
     def __init__(self, model, dataloaders, 
                 opt_constr=optim.Adam, lr_sched = lambda e: 1, 
@@ -19,13 +19,13 @@ class Trainer(object):
         # Setup model, optimizer, and dataloaders
         self.model = model
         self.optimizer = opt_constr(self.model.parameters())
-        try: self.lr_scheduler = lr_sched(self.optimizer)
-        except: self.lr_scheduler = optim.lr_scheduler.LambdaLR(self.optimizer,lr_sched)
+        # self.lr_scheduler = lr_sched(self.optimizer)
+        self.lr_scheduler = optim.lr_scheduler.LambdaLR(self.optimizer,lr_sched)
         self.dataloaders = dataloaders # A dictionary of dataloaders
         self.epoch = 0
 
         self.logger = LazyLogger(log_dir, **log_args)
-        self.logger.add_text('ModelSpec','model: '+type(model).__name__)
+        self.logger.add_text('ModelSpec','model: {}'.format(model))
         self.hypers = {'description':description}
         # Extra work to do (used for subclass)
         extraInit()
@@ -40,10 +40,11 @@ class Trainer(object):
         start_epoch = self.epoch
         for self.epoch in tqdm(range(start_epoch, start_epoch + num_epochs)):
             self.lr_scheduler.step(self.epoch)
-            for i, minibatch in enumerate(tqdm(self.dataloaders['train'])):
-                self.step(*minibatch)
+            for i, minibatch in enumerate(self.dataloaders['train']):
                 with self.logger as do_log:
                     if do_log: self.logStuff(i, minibatch)
+                self.step(*minibatch)
+                
 
     def step(self, *minibatch):
         self.optimizer.zero_grad()
@@ -56,8 +57,11 @@ class Trainer(object):
         """ Takes in a minibatch of data and outputs the loss"""
         raise NotImplementedError
     
-    def logStuff(self, *args, **kwargs):
-        print(self.logger.emas())
+    def logStuff(self, i, minibatch):
+        step = i+1 + (self.epoch+1)*len(self.dataloaders['train'])
+        metrics = {'Minibatch_Loss':self.loss(*minibatch).cpu().data.numpy()}
+        self.logger.add_scalars('metrics', metrics, step)
+        self.logger.report()
     
     def getAverageLoss(self, loader):
         loss_sum, num_total = 0, 0

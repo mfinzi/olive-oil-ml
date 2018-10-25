@@ -5,3 +5,6 @@ __pycache__
 *.np
 *.t
 .ipynb_checkpoints/
+*.pt
+*.ckpt
+.experiments/runs/

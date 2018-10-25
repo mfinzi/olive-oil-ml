@@ -8,14 +8,10 @@ import matplotlib.pyplot as plt
 from copy import deepcopy
 from contextlib import contextmanager
 from itertools import islice, starmap
+from ..utils.utils import cur
 
-from oil.cnnTrainer import CnnTrainer
-from oil.datasets import CIFAR10, C10augLayers
-from oil.networkparts import layer13
-from oil.schedules import cosLr
-from oil.utils import to_gpu, cur, multiGen
-from oil.extra.mvm import to_matmul, autoHvpBatch, autoFvpBatch, flatten
-
+#from oil.extra.mvm import to_matmul, autoHvpBatch, autoFvpBatch, flatten
+autoFvpBatch = NotImplemented
 
 no_log = lambda *args,**kwargs:None
 
@@ -76,15 +72,7 @@ class GradLoader(object):
 
     def __iter__(self):
         return starmap(self.cur_grad_func, self.dataloader)
-    
-    # Full batch evaluation of the gradient
-    # def __call__(self,w):
-    #     grad_mean = 0
-    #     for n, g in enumerate(self,1):
-    #         grad_mean += (g(w) - grad_mean)/n
-    #     return grad_mean
-    ## Evaluates the mean of each element of the data loader
-    ## at the particular point w, ie Full batch evaluation
+
     def __call__(self,w):
         for n,data in enumerate(self.dataloader,1):
             mdata = list(map(lambda d: d(w), data))
@@ -94,6 +82,15 @@ class GradLoader(object):
                 means[i] += (data - means[i])/n
         funcs = list(map(lambda c: lambda _: c, means))
         return self.cur_grad_func(*funcs)(w)
+
+    # Full batch evaluation of the gradient
+    # def __call__(self,w):
+    #     grad_mean = 0
+    #     for n, g in enumerate(self,1):
+    #         grad_mean += (g(w) - grad_mean)/n
+    #     return grad_mean
+    ## Evaluates the mean of each element of the data loader
+    ## at the particular point w, ie Full batch evaluation
 
 
 

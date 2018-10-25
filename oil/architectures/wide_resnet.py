@@ -1,5 +1,4 @@
 """
-    Copied with permission from https://github.com/timgaripov/swa/tree/master/models
     WideResNet model definition
     ported from https://github.com/meliketoy/wide-resnet.pytorch/blob/master/networks/wide_resnet.py
 """

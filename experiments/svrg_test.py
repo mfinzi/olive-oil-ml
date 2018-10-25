@@ -4,6 +4,7 @@ import torch.nn as nn
 
 #import oil.augLayers as augLayers
 from oil.model_trainers.classifierTrainer import ClassifierTrainer
+from oil.model_trainers.svrgTrainer3 import SVRGTrainer
 from oil.datasetup.datasets import CIFAR10, C10augLayers
 from oil.datasetup.dataloaders import getUnlabLoader, getLabLoader
 from oil.architectures.networkparts import layer13,ConvSmallNWN
@@ -17,8 +18,8 @@ opt_config =        {'lr':.1, 'momentum':.9, 'weight_decay':1e-4, 'nesterov':Tru
 sched_config =      {'cycle_length':train_epochs,'cycle_mult':1}
 trainer_config =    {}
 
-trainer_config['log_dir'] = '/home/maf388/tb-experiments2/baseline2'
-trainer_config['description'] = 'Test being made'
+trainer_config['log_dir'] = '/home/maf388/tb-experiments2/svrg'
+trainer_config['description'] = 'SVRG Test being made'
 
 def makeTrainer():
     device = torch.device('cuda')
@@ -30,9 +31,10 @@ def makeTrainer():
     dataloaders['train'], dataloaders['dev'] = getLabLoader(trainset,**loader_config)
     dataloaders = {k: loader_to(device)(v) for k,v in dataloaders.items()}
 
-    opt_constr = lambda params: optim.SGD(params, **opt_config)
+
+    opt_constr = lambda params: SVRG(params, **opt_config)
     lr_sched = cosLr(**sched_config)
-    return ClassifierTrainer(fullCNN, dataloaders, opt_constr, lr_sched, **trainer_config)
+    return SVRGTrainer(fullCNN, dataloaders, opt_constr, lr_sched, **trainer_config)
 
 trainer = makeTrainer()
 trainer.train(train_epochs)

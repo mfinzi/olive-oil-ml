@@ -61,27 +61,27 @@ def classBalancedSampleIndices(trainset, numLabeled, numDev):
 
 #TODO: Needs some rework to function properly in the semisupervised case
 
-class ShuffleCycleSubsetSampler(Sampler):
-    """A cycle version of SubsetRandomSampler with
-        reordering on restart """
-    def __init__(self, indices):
-        raise NotImplementedError
-        self.indices = indices
+# class ShuffleCycleSubsetSampler(Sampler):
+#     """A cycle version of SubsetRandomSampler with
+#         reordering on calls to __iter__
+#         contains current permutation & index as a state """
+#     def __init__(self, indices):
+#         self.indices = indices
     
-    def __iter__(self):
-        return self._gen()
+#     def __iter__(self):
+#         return self._gen()
 
-    def _gen(self):
-        i = len(self.indices)
-        while True:
-            if i >= len(self.indices):
-                perm = np.random.permutation(self.indices)
-                i=0
-            yield perm[i]
-            i+=1
+#     def _gen(self):
+#         i = len(self.indices)
+#         while True:
+#             if i >= len(self.indices):
+#                 perm = np.random.permutation(self.indices)
+#                 i=0
+#             yield perm[i]
+#             i+=1
     
-    def __len__(self):
-        return len(self.indices)
+#     def __len__(self):
+#         return len(self.indices)
 
 class SequentialSubsetSampler(Sampler):
     """Samples sequentially from specified indices, does not cycle """

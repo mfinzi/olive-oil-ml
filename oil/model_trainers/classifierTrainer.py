@@ -7,9 +7,10 @@ class ClassifierTrainer(Trainer):
     """ Trainer subclass. Implements loss (crossentropy), batchAccuracy
         and getAccuracy (full dataset) """
 
-    def loss(self, x, y):
+    def loss(self, x, y, model = None):
         """ Standard cross-entropy loss """
-        return nn.CrossEntropyLoss()(self.model(x),y)
+        if model is None: model = self.model
+        return nn.CrossEntropyLoss()(model(x),y)
 
     def batchAccuracy(self, minibatch, model = None):
         """ Evaluates the minibatch accuracy """

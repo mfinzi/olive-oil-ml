@@ -43,13 +43,22 @@ class LazyLogger(LogTimer, MaybeTbWriter):
     """ Thin wrapper around tensorboardX summarywriter,
         non tensorboard logging functionality to come
     """ 
-    def __init__(self, log_dir = None, ema_com=5, **kwargs):
+    def __init__(self, log_dir = None, no_print=False, ema_com=2, **kwargs):
         self.text = {}
         self.constants = {}
-        self.scalarFrame = pd.DataFrame()
-        self.com = 20
+        self.scalar_frame = pd.DataFrame()
+        self.no_print = no_print
+        self._com = ema_com
         self._log_dir = log_dir
+        self._unreported = {}
         super().__init__(log_dir=log_dir, **kwargs)
+
+    def report(self):
+        if self.no_print: return
+        for unreported_info in self._unreported.values():
+            print(unreported_info)#+'\n')
+        self._unreported = {}
+        print(self.emas())
 
     @property # Needs to be read only
     def log_dir(self):
@@ -58,12 +67,14 @@ class LazyLogger(LogTimer, MaybeTbWriter):
     def emas(self):
         """ Returns the exponential moving average of the logged
             scalars (not consts) """
-        return self.scalarFrame.ewm(com=self.com).mean().iloc[-1:]
+        return self.scalar_frame.ewm(com=self._com).mean().iloc[-1:]
 
     def add_text(self, tag, text_string):
         try: self.text[tag].add(text_string)
         except KeyError: self.text[tag] = {text_string}
-        super().add_text(tag, text_string)
+        self._unreported[tag] = text_string
+        #TB writer add_text doesn't work properly?
+        #super().add_text(tag, text_string)
 
     def _add_constants(self, tag, dic):
         try: self.constants[tag].update(dic)
@@ -77,21 +88,21 @@ class LazyLogger(LogTimer, MaybeTbWriter):
         else:
             i = step if step is not None else walltime
             newRow = pd.DataFrame(dic, index = [i])
-            self.scalarFrame = self.scalarFrame.combine_first(newRow)
+            self.scalar_frame = self.scalar_frame.combine_first(newRow)
             super().add_scalars(tag, dic, step)#, walltime=walltime) #TODO: update tensorboardX?
 
     def state_dict(self):
         # Will there be a problem with pickling the log_timer here?
         return {'text':self.text,'constants':self.constants,
-                'scalarFrame':self.scalarFrame}
+                'scalar_frame':self.scalar_frame}
 
     def load_state_dict(self, state):
         self.text = state['text']
         self.constants = state['constants']
-        self.scalarFrame = state['scalarFrame']
+        self.scalar_frame = state['scalar_frame']
         #self.log_timer = state['log_timer']
 
     def __str__(self):
-        return "{} object with text: {}, constants: {}, scalarFrame: {}.\n\
+        return "{} object with text: {}, constants: {}, scalar_frame: {}.\n\
             logging in directory: {}".format(
-            self.__class__,self.text,self.constants,self.scalarFrame,self.log_dir)
+            self.__class__,self.text,self.constants,self.scalar_frame,self.log_dir)

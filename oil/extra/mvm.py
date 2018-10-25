@@ -9,11 +9,11 @@ from copy import deepcopy
 from contextlib import contextmanager
 from itertools import islice
 
-from oil.cnnTrainer import CnnTrainer
-from oil.datasets import CIFAR10, C10augLayers
+from oil.classifierTrainer import ClassifierTrainer as CnnTrainer
+#from oil.datasets import CIFAR10, C10augLayers
 #from oil.networkparts import layer13
 #from oil.schedules import cosLr
-from oil.utils import to_gpu
+#from oil.utils import to_gpu
 #from oil.extra.lanczos import lanczos_tridiag, lanczos_tridiag_to_diag
 #from oil.extra.linear_cg import linear_cg
 
