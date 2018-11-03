@@ -1,10 +1,15 @@
 import types
+#import numpy as np
+#import torch
+#from .translation import translated_methods as np
 import numpy as np
-import torch
+np.set_lang = lambda a:None
+np.new_zeros = lambda M,s: np.zeros(s,dtype=M.dtype)
 
-class AbstractAttribute(object):
-    def __get__(self, obj, type):
-        raise NotImplementedError("This attribute was not set in a subclass")
+
+# class AbstractAttribute(object):
+#     def __get__(self, obj, type):
+#         raise NotImplementedError("This attribute was not set in a subclass")
 
 def lazy(M):
     return LazyMatrix(M.__matmul__,M.shape)
@@ -14,9 +19,10 @@ class LazyMatrix(object):
     #_mvm = AbstractAttribute()
     #shape = AbstractAttribute()
     #out_class = AbstractAttribute()
-    def __init__(self,mvm,shape):#,cls=torch.Tensor):
+    def __init__(self,mvm,shape, cls=None):
         self._mvm = mvm
         self.shape = shape
+        np.set_lang(cls)
         #self.cls = cls
 
     def _mvm(self, v):
@@ -31,9 +37,7 @@ class LazyMatrix(object):
             # Lazily compose the matmul in a lambda
             return LazyMatrix(lambda N: self@(M@N), new_shape)
         if isinstance(M,np.ndarray):
-            out = np.ndarray(new_shape)
-        # if isinstance(M,torch.Tensor):
-        #     out = M.new(*new_shape)
+            out = np.new_zeros(M,new_shape)
         for i in range(M.shape[-1]):
             out[:,i] = self@M[:,i]
         return out
@@ -51,16 +55,12 @@ class LazyMatrix(object):
         assert not isinstance(c,LazyMatrix), "(only scalars are supported)"
         return LazyMatrix(lambda N: c*(self@N), self.shape, self.cls)
 
-    def t(self):
-        raise NotImplementedError
-
     @property
     def T(self):
         raise NotImplementedError
 
     def __rmatmul__(self,M):
         return (self.T @ M.T).T
-        #return (self.t @ M.t()).t()
 
     def diag(self):
         # use the stochastic diagonal estimator
@@ -69,7 +69,7 @@ class LazyMatrix(object):
     def exact_diag(self): # O(n^2)
         assert self.shape[0]==self.shape[1], "Must be square"
         out = self.cls(self.shape[0])
-        for i,ei in torch.eye(self.shape[0]):
+        for i,ei in np.eye(self.shape[0]):
             out[i] = ei@(self@ei)
         return out
 
@@ -77,8 +77,6 @@ class LazyMatrix(object):
         raise NotImplementedError
 
     def evaluate(self):
-        # if isinstance(self.shape, torch.Size):
-        #     return self@torch.eye(self.shape[-1])
         return self@np.eye(self.shape[-1])
     
     
