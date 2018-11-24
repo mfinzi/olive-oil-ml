@@ -1,9 +1,5 @@
 from .lazy_matrix import LazyMatrix
 
-class LazyDiag(LazyMatrix):
-    def __init__(self, vec):
-        assert len(vec.shape)==1, "Only flat vectors allowed"
-        super().__init__(lambda v: vec*v, vec.shape*2,type(vec))
 
 class LazySum(LazyMatrix):
     def __init__(self,*Ms):
@@ -55,5 +51,15 @@ class LazyTranspose(LazyMatrix):
     def __str__(self):
         return "{}.T".format(self.A)
     
-
+class LazyDiag(LazyMatrix):
+    def __init__(self, vec):
+        assert len(vec.shape)==1, "Only flat vectors allowed"
+        self.vec = vec
+        try: vdevice = vec.device
+        except AttributeError: vdevice = 'cpu'
+        baseAttributes = vec.shape*2,vec.dtype,vdevice,type(vec)
+        mvm = rmvm = lambda v: self.vec*v
+        super().__init__(mvm,baseAttributes,rmvm)
+    def __str__(self):
+        return "Diag({})".format(self.vec)
 
