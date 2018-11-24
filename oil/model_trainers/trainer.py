@@ -6,8 +6,6 @@ from ..utils.mytqdm import tqdm
 import copy, os, random
 
 
-
-
 class Trainer(object):
     """ Base trainer
         """
@@ -59,7 +57,9 @@ class Trainer(object):
     
     def logStuff(self, i, minibatch):
         step = i+1 + (self.epoch+1)*len(self.dataloaders['train'])
-        metrics = {'Minibatch_Loss':self.loss(*minibatch).cpu().data.numpy()}
+        metrics = {}
+        try: metrics['Minibatch_Loss'] = self.loss(*minibatch).cpu().data.numpy()
+        except NotImplementedError: pass
         self.logger.add_scalars('metrics', metrics, step)
         self.logger.report()
     
