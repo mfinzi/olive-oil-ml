@@ -75,7 +75,7 @@ class GradLoader(object):
 
 ## Example usage
 #    H = Hessian(model,dataloader)
-#    F = Fisher(model,dataloader)+.001*I
+#    F = Fisher(model,dataloader)
 #    grads = GradLoader(SGHA_grad, (H,F))
 #    SGD(grads,w0,lr,num_epochs)
 

@@ -1,17 +1,16 @@
 from .translation import translate_methods
-import numpy as np
 
 class LazyMatrix(object):
     
     """"""
     def __init__(self,mvm,baseAttributes,rmvm=NotImplementedError):
-        self._setbaseAttributes(baseAttributes)
+        self._setBaseAttributes(baseAttributes)
         self._mvm = mvm
         self._rmvm = rmvm
 
     def _setBaseAttributes(self,base_attributes):
         self.shape,self.dtype,self.device,self.cls = base_attributes
-        self.np = translate_methods[self.cls]
+        self.xp = translate_methods[self.cls]
     def baseAttributes(self):
         return self.shape,self.dtype,self.device,self.cls
 
@@ -19,42 +18,66 @@ class LazyMatrix(object):
         raise NotImplementedError
     def _rmvm(self,v):
         raise NotImplementedError
-    def _mm(self,V):
-        out = self.np.new_zeros(V,self.shape[:-1]+V.shape[1:])
+    def _mmm(self,V):
+        out = self.xp.new_zeros(V,self.shape[:-1]+V.shape[1:])
         for i in range(V.shape[-1]):
             out[:,i] = self@V[:,i]
-
+        return out
+    def _rmm(self,V):
+        out = self.xp.new_zeros(V,V.shape[:-1]+self.shape[1:])
+        for i in range(V.shape[0]):
+            out[i,:] = V[i,:]@self
+        return out
+        
     def __matmul__(self,M):
-        assert self.shape[-1]==M.shape[0], "Incompatible Matrix shapes"
-        if len(M.shape)==1: # Vector input
-            return self._mvm(M)
-        new_shape = self.shape[:-1]+M.shape[1:]
+        try: assert self.shape[-1]==M.shape[0], "Incompatible Matrix shapes"
+        except AttributeError: pass #Some matrices are shapeless like identity
         if isinstance(M,LazyMatrix):
             return LazyMatmul(self,M)
-        if isinstance(M,self.cls):
-            return self._mm(M)
+        #if isinstance(M,self.cls):
+        if len(M.shape)==1: # If no mvm is implemented, assume _mmm is overwritten
+            try: return self._mvm(M) 
+            except NotImplementedError: pass
+        return self._mmm(M)
+        #assert False, "Unknown matmullable object M with type: {}".format(type(M))
+
+    # def __rmatmul__(self,M):
+    #     return (self.T @ M.T).T
     def __rmatmul__(self,M):
-        raise NotImplementedError
+        try: assert self.shape[-1]==M.shape[0], "Incompatible Matrix shapes"
+        except AttributeError: pass #Some matrices are shapeless like identity
+        if isinstance(M,LazyMatrix):
+            return LazyMatmul(M,self)
+        #if isinstance(M,self.cls):
+        if len(M.shape)==1: # If no mvm is implemented, assume _mmm is overwritten
+            try: return self._rmvm(M) 
+            except NotImplementedError: pass
+        return self._rmm(M)
+        #assert False, "Unknown matmullable object M with type: {}".format(type(M))
+
+    __array_ufunc__ = None # So that numpy arrays don't get confused looking for ufuncs
 
     @property
     def T(self):
         return LazyTranspose(self)
 
-    # def __rmatmul__(self,M):
-    #     return (self.T @ M.T).T
-
     def __add__(self,M):
-        return LazySum(self,M)
+        if M==0: return self
+        else: return LazyAdd(self,M)
     def __radd__(self,M):
         return self+M
+    def __sub__(self,M):
+        return LazyAdd(self,-1*M)
+    def __rsub__(self,M):
+        return -1*self + M
     def __mul__(self,c):
         return LazyMul(self,c)
     def __rmul__(self,c):
         return self*c
-    def __sub__(self,M):
-        return LazySum(self,-1*M)
-    def __rsub__(self,M):
-        return -1*self + M
+    def __truediv__(self,c):
+        return self*(1/c)
+    def __rtruediv__(self,c):
+        return self/c
 
     def diag(self):
         # use the stochastic diagonal estimator
@@ -63,7 +86,8 @@ class LazyMatrix(object):
     def exact_diag(self): # O(n^2)
         assert self.shape[0]==self.shape[1], "Must be square"
         out = self.cls(self.shape[0])
-        for i,ei in self.np.eye(self.shape[0]):
+        eye = self.xp.eye(self.shape[0],dtype=self.dtype,device=self.device)
+        for i,ei in enumerate(eye):
             out[i] = ei@(self@ei)
         return out
 
@@ -71,7 +95,12 @@ class LazyMatrix(object):
         raise NotImplementedError
 
     def evaluate(self):
-        return self@self.np.eye(self.shape[-1])
+        eye = self.xp.eye(self.shape[-1],dtype=self.dtype,device=self.device)
+        return self@eye
+
+    def __str__(self):
+        alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjklmnpqrstuvwxyz'
+        return alphabet[hash(id(self))%48]
     
 
 class Lazy(LazyMatrix):
@@ -80,8 +109,8 @@ class Lazy(LazyMatrix):
         try: self.device
         except AttributeError: self.device = 'cpu'
         self.cls = type(array)
-        self.np = translate_methods[self.cls]
-        self._mm = self._mvm = array.__matmul__
+        self.xp = translate_methods[self.cls]
+        self._mmm = self._mvm = array.__matmul__
         self._rmm = self._rmvm = array.T.__matmul__
     # Passes attributes through to underlying array    
     def __getattr__(self, name,default=None):
@@ -93,7 +122,7 @@ class Lazy(LazyMatrix):
         else: super().__setattr__(name,value)
 
 # Needs to be at the bottom to prevent circular imports
-from .lazy_types import LazySum, LazyMul, LazyMatmul, LazyTranspose
+from .lazy_types import LazyAdd, LazyMul, LazyMatmul, LazyTranspose
 
 
     

@@ -5,6 +5,9 @@ class xp2numpy():
     @staticmethod
     def new_zeros(M,shape):
         return np.zeros(shape or M.shape,dtype=M.dtype)
+    @staticmethod
+    def eye(n,device=None,**kwargs):
+        return np.eye(n,**kwargs)
     def __getattr__(self,name):
         return getattr(np,name)
 class xp2torch():

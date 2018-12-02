@@ -29,15 +29,28 @@ class LogTimer(object):
                 self.lastLogTime = time.time()
 
 
-class Silent(object):
-    def __getattr__(self, name):
-        if not hasattr(Silent, name):
-            return (lambda *args, **kwargs:None)
+# class Silent(object):
+#     def __init__(self,*args,**kwargs):
+#         pass#super().__init__(*args,**kwargs)
+#     def __getattr__(self, name):
+#         if not hasattr(Silent, name):
+#             return (lambda *args, **kwargs:None)
+# def silent(*args,**kwargs):
+#     pass
+
+class NothingWriter(object):
+    add_scalar = add_scalars = add_scalars_to_json = add_image \
+    = add_image_with_boxes = add_figure = add_video = add_audio \
+    = add_text = add_onnx_graph = add_graph = add_embedding \
+    = add_pr_curve_raw = close = lambda *args,**kwargs:None
+    def __init__(self, log_dir=None,comment='',**kwargs):
+        return super().__init__(**kwargs)
+
 try: 
     import tensorboardX
     MaybeTbWriter = tensorboardX.SummaryWriter
 except ModuleNotFoundError: 
-    MaybeTbWriter = Silent
+    MaybeTbWriter = NothingWriter
 
 class LazyLogger(LogTimer, MaybeTbWriter):
     """ Thin wrapper around tensorboardX summarywriter,

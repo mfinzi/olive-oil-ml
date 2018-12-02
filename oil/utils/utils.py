@@ -17,6 +17,8 @@ class map_with_len(object):
     def __len__(self):
         return len(self._iter)
 
+class imap(map_with_len): pass
+
 def loader_to(device):
     """Returns a function that sends dataloader output
          to the specified device"""
@@ -26,27 +28,15 @@ def loader_to(device):
             return type(mb)(map(lambda x:x.to(device),mb))
     return lambda loader: map_with_len(minibatch_map, loader)
 
-## Depreciated methods for performing to_gpu
-# def to_var_gpu(x, **kwargs):
-#     """ recursively map the elements to variables on gpu """
-#     if x is None: 
-#         return x
-#     if type(x) in [list, tuple]:
-#         curry = lambda x: to_var_gpu(x, **kwargs)
-#         return type(x)(map(curry, x))
-#     else: 
-#         return Variable(x, **kwargs).cuda()
-
-# def to_gpu(x, double=False, cpu=False):
-#     if x is None:
-#         return x
-#     if type(x) in [list, tuple]:
-#         curry = lambda x: to_gpu(x, double, cpu)
-#         return type(x)(map(curry, x))
-#     else:
-#         if double and x.dtype==torch.float32: x = x.double()
-#         if cpu: return x.cpu()
-#         return x.to(torch.device("cuda"))
+# # Wraps a generator so that calling __iter__ multiple
+# #    times produces distinct non-empty generators  
+class reusable(object):
+    def __init__(self, generator_constructor):
+        self._gen = generator_constructor
+    def __iter__(self):
+        return self._gen()
+    # def __len__(self):
+    #     return len(self._gen())
 
 class Eval(object):
     def __init__(self, model):
@@ -77,28 +67,6 @@ def cosLr(cycle_length, cycle_mult=1):
         return cos_scale
     return lrSched
 
-# Now part of LazyLogger.py in logging
-# class logTimer(object):
-#         def __init__(self, mins = 1, timeFrac = 1/10):
-#             self.avgLogTime = 0
-#             self.numLogs = 0
-#             self.lastLogTime = 0
-#             self.mins = mins
-#             self.timeFrac = timeFrac
-#             self.performedLog = False
-#         def __enter__(self):
-#             timeSinceLog = time.time() - self.lastLogTime
-#             self.performedLog = (timeSinceLog>60*self.mins) \
-#                                 and (self.avgLogTime<=self.timeFrac*timeSinceLog)
-#             if self.performedLog: self.lastLogTime = time.time()
-#             return self.performedLog
-#         def __exit__(self, *args):
-#             if self.performedLog:
-#                 timeSpentLogging = time.time()-self.lastLogTime
-#                 n = self.numLogs
-#                 self.avgLogTime = timeSpentLogging/(n+1) + self.avgLogTime*n/(n+1)
-#                 self.numLogs += 1
-#                 self.lastLogTime = time.time()
 
 def to_lambda(x):
     """ Turns constants into constant functions """
@@ -179,16 +147,6 @@ def cur(f, minArgs = None):
  
 def curr(f, minArgs = None):
     return genCur(f, False, minArgs)
-
-# Wraps a generator so that calling __iter__ multiple
-#    times produces distinct non-empty generators  
-class multiGen(object):
-    def __init__(self, generator_constructor):
-        self._gen = generator_constructor
-    def __iter__(self):
-        return self._gen()
-    def __len__(self):
-        return len(self._gen())
 
 def dillcopy(obj):
     return dill.loads(dill.dumps(obj))

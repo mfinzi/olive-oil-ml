@@ -1,29 +1,39 @@
 from .lazy_matrix import LazyMatrix
 
-
 class LazySum(LazyMatrix):
-    def __init__(self,*Ms):
-        self._setBaseAttributes(Ms[0].baseAttributes())
+    def __init__(self,Ms):
+        """Inputs sequence of lazys, [M1,M2,...,Mn] -> M1+M2+...+Mn"""
         self.Ms = Ms
-        for M in Ms: #Todo: add broadcasting support
-            assert M.shape == Ms[0].shape, "Incompatible shapes" 
-    def __matmul__(self,U): #TODO: Add parallelization support
+        for Mi in Ms:
+            try: return self._setBaseAttributes(Mi.baseAttributes())
+            except AttributeError: continue # Check shape compatibility?
+        
+    def _mmm(self, U): #TODO: Add parallelization support
         return sum(M@U for M in self.Ms)
-    def __rmatmul__(self, V):
+    def _rmm(self, V):
         return sum(V@M for M in self.Ms)
     def __str__(self):
-        return "({}"+"+{}"*len(self.Ms[1:])+")".format(self.Ms)
+        try: return ("({}"+"+{}"*(len(self.Ms)-1)+")").format(*self.Ms)
+        except TypeError: return "VeryLazySum"
     def __iter__(self):
-        return self.Ms
+        """Allows explicit iterating through elements in sum """
+        if isinstance(self.Ms,tuple): # Collapse the sum if unpackable
+            return (LazySum(ms) for ms in zip(*self.Ms))
+        else: return iter(self.Ms)
+
+class LazyAdd(LazySum):
+    def __init__(self,*Ms):
+        super().__init__(Ms)
 
 class LazyMul(LazyMatrix):
     def __init__(self,M,c):
-        self._setBaseAttributes(M.baseAttributes())
+        try: self._setBaseAttributes(M.baseAttributes())
+        except AttributeError: pass #shapeless matrices
         self.M, self.c = M,c
         assert not isinstance(c,LazyMatrix), "No lazy elementwise mul"
-    def __matmul__(self,U):
+    def _mmm(self,U):
         return self.c*(self.M@U) #potential problem here with recursion?
-    def __rmatmul__(self,V):
+    def _rmm(self,V):
         return self.c*(V@self.M)
     def __str__(self):
         return "({}*{})".format(self.c,self.M)
@@ -34,9 +44,9 @@ class LazyMatmul(LazyMatrix):
         self.shape = M.shape[:-1]+N.shape[1:]
         assert M.shape[1] == N.shape[0], "Incompatible shapes"
         self.M,self.N = M,N  
-    def __matmul__(self,U):
+    def _mmm(self,U):
         return self.M@(self.N@U)
-    def __rmatmul__(self,V):
+    def _rmm(self,V):
         return (V@self.M)@self.N
     def __str__(self):
         return "({}@{})".format(self.M,self.N)
@@ -50,7 +60,15 @@ class LazyTranspose(LazyMatrix):
         self.A = A
     def __str__(self):
         return "{}.T".format(self.A)
+    @property
+    def T(self):
+        return self.A
     
+# class Symmetric(LazyMatrix):
+#     @property
+#     def T(self):
+#         return self
+
 class LazyDiag(LazyMatrix):
     def __init__(self, vec):
         assert len(vec.shape)==1, "Only flat vectors allowed"
@@ -60,6 +78,33 @@ class LazyDiag(LazyMatrix):
         baseAttributes = vec.shape*2,vec.dtype,vdevice,type(vec)
         mvm = rmvm = lambda v: self.vec*v
         super().__init__(mvm,baseAttributes,rmvm)
+    def diag(self):
+        return self.vec
     def __str__(self):
         return "Diag({})".format(self.vec)
 
+class LazyAvg(LazySum):
+    """ Convenience version of LazySum that averages and allows iterating
+        through the elements in the average """
+    def _mmm(self, U):
+        try: n = len(self.Ms)
+        except TypeError: n = sum(1 for _ in self.Ms)
+        return super()._mmm(U)/n
+    def _rmm(self,V):
+        try: n = len(self.Ms)
+        except TypeError: n = sum(1 for _ in self.Ms)
+        return super()._rmm(V)/n
+    def __str__(self):
+        return super().__str__()+"/n"
+
+# Singleton
+class LazyIdentity(LazyMatrix):
+    def __init__(self):
+        pass
+    def _mmm(self,U):
+        return U
+    def _rmm(self,V):
+        return V
+    def __str__(self):
+        return "I"
+I = LazyIdentity()
