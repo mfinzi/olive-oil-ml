@@ -24,14 +24,15 @@ def SGD(grads,w,lr,num_epochs,log=no_log):
     return w
 
 # Stochastic Variance Reduced Gradient 
-def SVRG(grads,w,lr,num_epochs,log=no_log):
+def SVRG(grads,w,w_a,lr,num_epochs,log=no_log):
     for epoch in range(num_epochs):
-        w_a = deepcopy(w)   # Anchor w
+        w_a.data = w.data
         grad_a = grads(w_a) # Anchor grad
         for grad in grads:
-            grad_vr = grad(w) - grad(w_a) + grad_a
-            w = w - lr(epoch)*grad_vr
-            log(w, lr(epoch), grad_a)
+            print("sas")
+            grad_vr = grad(w)#grad(w) - grad(w_a) + grad_a
+#             w.data = w.data - lr(epoch)*grad_vr.data
+#             log(w, lr(epoch), grad_a)
     return w
 
 def oja_grad(A,w):
