@@ -25,6 +25,7 @@ def SGD(grads,w,lr,num_epochs,log=no_log):
 # Stochastic Variance Reduced Gradient 
 def SVRG(grads,w,lr,num_epochs,log=no_log):
     for epoch in tqdm(range(num_epochs)):
+        print("Epoch ", epoch)
         w_a = deepcopy(w)   # Anchor w
         grad_a = grads(w_a) # Anchor grad
         for grad in grads:
@@ -45,7 +46,7 @@ def oja_grad2(A,w):
 #    matrices A and B are independent
 def SGHA_grad(A,B,w):
     Aw = A@w
-    return -(Aw - (w@Aw)*B@w)
+    return -(Aw - (w@Aw)*(B@w))
 
 # Care must be taken in the dataloading step that
 #    matrices B1 and B2 are independent
