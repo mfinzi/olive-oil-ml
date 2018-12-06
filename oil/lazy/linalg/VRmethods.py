@@ -52,6 +52,12 @@ def SGHA_grad(A,B,w):
 def SGHA_grad2(A,B1,B2,w):
     return -(A@w - (w@B1@w)*B2@w)
 
+def SGHA_subspace_grad(A,B,W):
+    AW = A@W
+    return -(AW - B@W@(W.T@AW))
+
+def SGHA_subspace_grad2(A,B1,B2,W):
+    return -(A@W - B2@W@(W.T@B1@W))
 
 # W is an n x k matrix of k eigenvectors
 def oja_subspace_grad(A,W):

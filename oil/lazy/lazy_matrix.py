@@ -44,7 +44,7 @@ class LazyMatrix(object):
     # def __rmatmul__(self,M):
     #     return (self.T @ M.T).T
     def __rmatmul__(self,M):
-        try: assert self.shape[-1]==M.shape[0], "Incompatible Matrix shapes"
+        try: assert self.shape[0]==M.shape[-1], "Incompatible Matrix shapes"
         except AttributeError: pass #Some matrices are shapeless like identity
         if isinstance(M,LazyMatrix):
             return LazyMatmul(M,self)
@@ -111,7 +111,7 @@ class Lazy(LazyMatrix):
         self.cls = type(array)
         self.xp = translate_methods[self.cls]
         self._mmm = self._mvm = array.__matmul__
-        self._rmm = self._rmvm = array.T.__matmul__
+        self._rmm = self._rmvm = array.__rmatmul__
     # Passes attributes through to underlying array    
     def __getattr__(self, name,default=None):
         return getattr(self.array,name,default)

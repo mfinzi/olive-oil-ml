@@ -87,13 +87,16 @@ class LazyAvg(LazySum):
     """ Convenience version of LazySum that averages and allows iterating
         through the elements in the average """
     def _mmm(self, U):
-        try: n = len(self.Ms)
-        except TypeError: n = sum(1 for _ in self.Ms)
-        return super()._mmm(U)/n
+        return super()._mmm(U)/self._get_n()
     def _rmm(self,V):
-        try: n = len(self.Ms)
-        except TypeError: n = sum(1 for _ in self.Ms)
-        return super()._rmm(V)/n
+        return super()._rmm(V)/self._get_n()
+    def _get_n(self):
+        try: return self._n # Check if value has been cached
+        except AttributeError:
+            try: self._n = len(self.Ms)
+            except TypeError: self._n = sum(1 for _ in self.Ms)
+        return self._n
+        
     def __str__(self):
         return super().__str__()+"/n"
 
