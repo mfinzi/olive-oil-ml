@@ -7,4 +7,7 @@ __pycache__
 .ipynb_checkpoints/
 *.pt
 *.ckpt
+*.pdf
+*.lexicog
+*.npz
 .experiments/runs/

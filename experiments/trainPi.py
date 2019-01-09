@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 from oil.model_trainers.piModel import PiModel
 from oil.datasetup.datasets import CIFAR10, C10augLayers
 from oil.datasetup.dataloaders import getLabLoader
-from oil.architectures.networkparts import layer13,ConvSmallNWN
+from oil.architectures.img_classifiers.networkparts import layer13,ConvSmallNWN
 from oil.utils.utils import cosLr, loader_to, imap
 
 

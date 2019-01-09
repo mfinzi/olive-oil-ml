@@ -4,9 +4,13 @@ import torch.nn as nn
 import torch.optim as optim
 import torchvision.utils as vutils
 import itertools
+import os
 import torch.nn.functional as F
 from .trainer import Trainer
-from ..utils.metrics import FID, IS
+import scipy.misc
+from ..utils.metrics import FID_and_IS
+from ..utils.utils import Eval
+from itertools import islice
 
 def hinge_loss_G(fake_logits):
     return -torch.mean(fake_logits)
@@ -16,73 +20,72 @@ def hinge_loss_D(real_logits,fake_logits):
 
 class Gan(Trainer):
     
-    def __init__(self, *args, D, n_disc = 1, **kwargs):
+    def __init__(self, *args,D=None,opt_constr=None,lr_sched=lambda e:1,
+                        n_disc = 2, **kwargs):
         def initClosure():
-            self.G = self.model
-            self.D = D
-            self.logger.add_text('ModelSpec','Discriminator: {}'.format(D))
-            if opt_constr is None: 
-                opt_constr = lambda params, lr: optim.Adam(params, 0.0002, betas=(.5,.999))
-            self.d_optimizer = opt_constr(self.D.parameters())
-            self.g_optimizer = opt_constr(self.G.parameters())
             self.hypers.update({'n_disc':n_disc})
-
-            self.fixed_z = self.G.sample_z(32)
         super().__init__(*args, extraInit = initClosure, **kwargs)
-        
-    def step(self, *data):
-        self.d_optimizer.zero_grad()
-        self.g_optimizer.zero_grad()
+
+        self.G = self.model
+        self.D = D
+        if not opt_constr:
+            g_opt=d_opt = lambda params: optim.Adam(params,2e-4,betas=(.5,.999))
+            self.hypers.update({'lr':2e-4,'betas':(.5,.999)})
+        elif isinstance(opt_constr,(list,tuple)):
+            g_opt,d_opt = opt_constr
+        else:
+            g_opt=d_opt = opt_constr
+        self.g_optimizer = g_opt(self.G.parameters())
+        self.d_optimizer = d_opt(self.D.parameters())
+        g_sched = optim.lr_scheduler.LambdaLR(self.g_optimizer,lr_sched)
+        d_sched = optim.lr_scheduler.LambdaLR(self.d_optimizer,lr_sched)
+        self.lr_schedulers = [g_sched,d_sched]
+        self.fixed_input = (self.G.sample_z(32),)
+
+    def step(self, data):
         # Step the Generator
-        G_loss = self.genLoss(*data)
+        self.g_optimizer.zero_grad()
+        G_loss = self.genLoss(data)
         G_loss.backward()
         self.g_optimizer.step()
         # Step the Discriminator
         for _ in range(self.hypers['n_disc']):
             self.d_optimizer.zero_grad()
-            self.g_optimizer.zero_grad()
-            D_loss = self.discLoss(*data)
+            D_loss = self.discLoss(data)
             D_loss.backward()
             self.d_optimizer.step()
 
-    # def sampleZ(self, n_samples=1):
-    #     return torch.randn(n_samples, self.G.z_dim).to(self.G.device)
-
-    # def sampleImages(self, n_samples=1):
-    #     return self.G(self.sampleZ(n_samples))
-
-    def genLoss(self, *data):
+    def genLoss(self, x):
         """ hinge based generator loss -E[D(G(z))] """
-        x,  = data
-        z = self.G.sample_z(len(x))
+        z = self.G.sample_z(x.shape[0])
         fake_logits = self.D(self.G(z))
         return hinge_loss_G(fake_logits)
 
-    def discLoss(self, *data):
-        x,  = data
-        z = self.G.sample_z(len(x))
+    def discLoss(self, x):
+        z = self.G.sample_z(x.shape[0])
         fake_logits = self.D(self.G(z))
         real_logits = self.D(x)
         return hinge_loss_D(real_logits,fake_logits)
 
-    def logStuff(self, i, minibatch):
+    def logStuff(self, i, minibatch=None):
         """ Handles Logging and any additional needs for subclasses,
             should have no impact on the training """
         step = i+1 + (self.epoch+1)*len(self.dataloaders['train'])
 
         metrics = {}
-        metrics['G_loss'] = self.genLoss(*trainData).cpu().data.numpy()
-        metrics['D_loss'] = self.discLoss(*trainData).cpu().data.numpy()
-        metrics['FID'] = FID(self.as_dataloader(),self.dataloaders['dev'])
-        metrics['IS'] = IS(self.as_dataloader())
+        if minibatch is not None:
+            metrics['G_loss'] = self.genLoss(minibatch).cpu().data.numpy()
+            metrics['D_loss'] = self.discLoss(minibatch).cpu().data.numpy()
+        try: metrics['FID'],metrics['IS'] = FID_and_IS(self.as_dataloader(),self.dataloaders['dev'])
+        except KeyError: pass
         self.logger.add_scalars('metrics', metrics, step)
-
-        fake_images = self.G(self.fixed_z).cpu().data
-        img_grid = vutils.make_grid(fakeImages, normalize=True)
+        # what if (in case of cycleGAN, there is no G?)
+        fake_images = self.G(*self.fixed_input).cpu().data
+        img_grid = vutils.make_grid(fake_images, normalize=True)
         self.logger.add_image('fake_samples', img_grid, step)
         super().logStuff(i,minibatch)
     
-    def as_dataloader(self,N=4096,bs=32):
+    def as_dataloader(self,N=5000,bs=64):
         return GanLoader(self.G,N,bs)
 
     def state_dict(self):
@@ -92,7 +95,7 @@ class Gan(Trainer):
             'D_state':self.D.state_dict(),
             'D_optim_state':self.d_optimizer.state_dict(),
         }
-        return super().state_dict.update(extra_state)
+        return {**super().state_dict(),**extra_state}
 
     def load_state_dict(self,state):
         super().load_state_dict(state)
@@ -101,31 +104,21 @@ class Gan(Trainer):
         self.D.load_state_dict(state['D_state'])
         self.d_optimizer.load_state_dict(state['D_optim_state'])
 
-# TODO: Deal with the the cGan case, where G(z,y)
-# TODO: inherit from dataloader, allow for arbitrary samplers
+# TODO: ????
 class GanLoader(object):
     """ Dataloader class for the generator"""
-    def __init__(self,G,N=10**10,bs=32):
+    def __init__(self,G,N=10**10,bs=64):
         self.G, self.N, self.bs = G,N,bs
     def __len__(self):
         return self.N
     def __iter__(self):
-        with Eval(self.G),torch.no_grad():
-            for z in range(self.N):
+        with torch.no_grad(),Eval(self.G):
+            for i in range(self.N//self.bs):
                 yield self.G.sample(self.bs)
+            if self.N%self.bs!=0:
+                yield self.G.sample(self.N%self.bs)
 
-
-# class GanLoader(object):
-#     """ Dataloader class for the generator"""
-#     def __init__(self,G,N=np.inf,bs=32):
-#         self.G, self.N, self.bs = G,N,bs
-#         if N < np.inf: self.Zs = G.sample_z(N*bs).reshape((N,bs,-1))
-#         else: self.Zs = []
-#     def __len__(self):
-#         return self.N
-#     def __iter__(self):
-#         with Eval(self.G),torch.no_grad():
-#             for z in self.Zs:
-#                 yield self.G(z)
-#             else: while True:
-#                 yield self.G(self.G.sample_z(self.bs))
+    def write_imgs(self,path):
+        np_images = np.concatenate([img.cpu().numpy() for img in self],axis=0)
+        for i,img in enumerate(np_images):
+            scipy.misc.imsave(path+'img{}.jpg'.format(i), img)

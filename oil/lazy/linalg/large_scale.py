@@ -6,22 +6,24 @@ import os
 from oil.model_trainers.classifier import Classifier
 from oil.datasetup.datasets import CIFAR10, C10augLayers
 from oil.datasetup.dataloaders import getLabLoader
-from oil.architectures.img_classifiers.networkparts import layer13,ConvSmallNWN
+from oil.architectures.img_classifiers.smallconv import smallCNN
 from oil.utils.utils import cosLr, loader_to
 
 train_epochs = 100
-net_config =        {'numClasses':10}
-loader_config =     {'amnt_dev':5000,'lab_BS':50,'dataseed':0,'num_workers':4}
+net_config =        {'numClasses':10,'k':24}
+loader_config =     {'amnt_dev':0,'lab_BS':50,'dataseed':0,'num_workers':1}
+
+
 opt_config =        {'lr':.1, 'momentum':.9, 'weight_decay':1e-4, 'nesterov':True}
 sched_config =      {'cycle_length':train_epochs,'cycle_mult':1}
 trainer_config =    {}
 all_hypers = {**net_config,**loader_config,**opt_config,**sched_config,**trainer_config}
 
-trainer_config['log_dir'] = os.path.expanduser('~/tb-experiments/baseline/')
+trainer_config['log_dir'] = os.path.expanduser('~/tb-experiments/smallcnn/')
 
 def makeTrainer():
     device = torch.device('cuda')
-    CNN = layer13(**net_config).to(device)
+    CNN = smallCNN(**net_config).to(device)
     fullCNN = nn.Sequential(C10augLayers(),CNN)
     trainset, testset = CIFAR10(False, '~/datasets/cifar10/')
 

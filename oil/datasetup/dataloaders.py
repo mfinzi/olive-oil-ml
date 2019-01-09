@@ -4,12 +4,12 @@ from torch.utils.data import DataLoader
 from torch.utils.data.sampler import Sampler, SubsetRandomSampler
 
 
-def getUnlabLoader(trainset, ul_BS, **kwargs):
-    """ Returns a dataloader for the full dataset, with cyclic reshuffling """
-    indices = np.arange(len(trainset))
-    unlabSampler = ShuffleCycleSubsetSampler(indices)
-    unlabLoader = DataLoader(trainset,sampler=unlabSampler,batch_size=ul_BS,**kwargs)
-    return unlabLoader
+# def getUnlabLoader(trainset, ul_BS, **kwargs):
+#     """ Returns a dataloader for the full dataset, with cyclic reshuffling """
+#     indices = np.arange(len(trainset))
+#     unlabSampler = ShuffleCycleSubsetSampler(indices)
+#     unlabLoader = DataLoader(trainset,sampler=unlabSampler,batch_size=ul_BS,**kwargs)
+#     return unlabLoader
 
 def getLabLoader(trainset, lab_BS, amnt_labeled=1, amnt_dev=0, dataseed=0,**kwargs):
     """ returns a dataloader of class balanced subset of the full dataset,

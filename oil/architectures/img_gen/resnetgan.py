@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 #from .spectral_normalization import SpectralNorm
 #from torch.nn.utils import spectral_norm
-from ..utils.utils import Expression
+from ...utils.utils import Expression
 from .ganBase import GanBase, add_spectral_norm, xavier_uniform_init
 
 

@@ -1,47 +1,42 @@
-import torch, torchvision
+import torch, torchvision,dill
 import torch.optim as optim
 import torch.nn as nn
-
+import os
 #import oil.augLayers as augLayers
-from oil.cnnTrainer import CnnTrainer
-from oil.datasets import CIFAR10, C10augLayers
-from oil.networkparts import layer13
-from oil.schedules import cosLr
+from oil.model_trainers.classifier import Classifier
+from oil.datasetup.datasets import CIFAR100
+from oil.datasetup.dataloaders import getLabLoader
+from oil.datasetup.augLayers import RandomErasing
+from oil.architectures.img_classifiers.networkparts import layer13
+from oil.utils.utils import cosLr, loader_to
 
-def makeCNN():
+train_epochs = 100
+DataSet = CIFAR100
+net_config =        {'numClasses':DataSet.num_classes}
+loader_config =     {'amnt_dev':5000,'lab_BS':[50,1000]}
+opt_config =        {'lr':[.3,.1,.03], 'momentum':.9, 'weight_decay':[1e-3,1e-4,1e-5]}
+sched_config =      {'cycle_length':lambda cfg: np.sqrt(cfg['bs']/50)*train_epochs}
+trainer_config =    {}
+all_hypers = {**net_config,**loader_config,**opt_config,**sched_config,**trainer_config}
+
+trainer_config['log_dir'] = os.path.expanduser('~/tb-experiments/c100cutout/')
+
+def makeTrainer(config):
+    trainset = config['dataset']('~/datasets/{}/'.format(config['dataset'].__name__))
+    device = torch.device('cuda')
     fullCNN = nn.Sequential(
-        C10augLayers(),
-        layer13(numClasses=10),
+        config['dataset'].default_aug_layers(),
+        config['additional_aug'],
+        config['network'](**config['net_config']).to(device)
     )
-    return fullCNN
+    dataloaders = {}
+    dataloaders['train'], dataloaders['dev'] = getLabLoader(trainset,**config['loader_config'])
+    dataloaders = {k: loader_to(device)(v) for k,v in dataloaders.items()}
 
-total_epochs = 250
-opt_constr = lambda params, base_lr: optim.SGD(params, base_lr, .9, weight_decay=1e-4, nesterov=True)
-lr_lambda = cosLr(total_epochs, 1)
+    opt_constr = lambda params: optim.SGD(params, **config['opt_config'])
+    lr_sched = cosLr(**config['sched_config'])
+    return Classifier(fullCNN,dataloaders,opt_constr,lr_sched,**config['trainer_config'],all_hypers=config)
 
-descr = "13Layer network, with layer augs, devset = 500"
-config = {'base_lr':.1, 'amntLab':1, 'amntDev':500,
-          'lab_BS':50, 'ul_BS':50, 'num_workers':4,
-          'lr_lambda':lr_lambda, 'opt_constr':opt_constr,
-          'description':descr, 'log':False,
-          }
-
-datasets = CIFAR10(aug=False)
-
-# Get the samplers for test and train dataloaders from reference to use for each network
-#load_path = '/home/maf388/tb-experiments/layer13dev/checkpoints/c.249.ckpt'
-trainer = CnnTrainer(makeCNN(), datasets, None, **config)
-lab_sampler = trainer.lab_train.batch_sampler
-dev_sampler = trainer.dev.batch_sampler
-
-savedirbase = '/home/maf388/tb-experiments/layer13s500dev/'
-for i in range(30):
-    # Construct new CNN and trainer for each network
-    trainer = CnnTrainer(makeCNN(), datasets, save_dir=None, **config)
-    # Change the dataloaders to those used in the reference (to fix devset)
-    trainer.lab_train.batch_sampler = lab_sampler
-    trainer.dev.batch_sampler = dev_sampler
-    trainer.train_iter = trainer.getTrainIter()
-    # Train network i
-    trainer.train(total_epochs)
-    trainer.save_checkpoint(savedirbase+"net"+str(i)+".ckpt")
+trainer = makeTrainer()
+trainer.train(train_epochs)
+torch.save(trainer,pickle_module=dill)

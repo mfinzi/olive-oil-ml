@@ -52,11 +52,21 @@ try:
 except ModuleNotFoundError: 
     MaybeTbWriter = NothingWriter
 
-class LazyLogger(LogTimer, MaybeTbWriter):
+class MaybeTbWriterWSerial(MaybeTbWriter):
+    """ Wraps summary writer but allows pickling with set and getstate """
+    def __getstate__(self):
+        return dict((k, v) for k, v in self.__dict__.items()
+                       if not k in ['file_writer','all_writers'])
+    def __setstate__(self,state):
+        self.__init__(log_dir = state['_log_dir'])
+        self.__dict__.update(state)
+
+
+class LazyLogger(LogTimer, MaybeTbWriterWSerial):
     """ Thin wrapper around tensorboardX summarywriter,
         non tensorboard logging functionality to come
     """ 
-    def __init__(self, log_dir = None, no_print=False, ema_com=2, **kwargs):
+    def __init__(self, log_dir = None, no_print=False, ema_com=0, **kwargs):
         self.text = {}
         self.constants = {}
         self.scalar_frame = pd.DataFrame()

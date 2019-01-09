@@ -30,6 +30,7 @@ class Classifier(Trainer):
             batch_acc = self.batchAccuracy(minibatch, model=model)
             num_correct += batch_acc*mb_size
             num_total += mb_size
+        if not num_total: raise KeyError("dataloader is empty")
         return num_correct/num_total
 
     def logStuff(self, i, minibatch=None):

@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 import numpy as np
 from torch.nn.utils import weight_norm
-from ..datasetup.augLayers import GaussianNoise
+#from ...datasetup.augLayers import GaussianNoise
 # weight init is automatically done in the module initialization
 # see https://github.com/pytorch/pytorch/blob/master/torch/nn/modules/conv.py
 def weight_init_he(m):

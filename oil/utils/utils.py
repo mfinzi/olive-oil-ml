@@ -7,6 +7,7 @@ import inspect
 import copy
 import os
 import dill
+import itertools
 
 class map_with_len(object):
     def __init__(self, func, iter_with_len):
@@ -38,6 +39,33 @@ class reusable(object):
     # def __len__(self):
     #     return len(self._gen())
 
+class islice(object):
+    def __init__(self,dataloader,k):
+        self.dataloader = dataloader
+        self.k = k
+    def __iter__(self):
+        return iter(itertools.islice(self.dataloader,self.k))
+    def __len__(self):
+        return self.k
+
+class izip(object):
+    def __init__(self,*iters):
+        self.iters = iters
+    def __iter__(self):
+        return iter(zip(*self.iters))
+    def __len__(self):
+        return min(len(it) for it in self.iters)
+## Wraps a dataloader and cycles repeatedly
+class icycle(object):
+    def __init__(self,dataloader):
+        self.dataloader = dataloader
+    def __iter__(self):
+        while True:
+            for data in self.dataloader:
+                yield data
+    def __len__(self):
+        return 10**10
+
 class Eval(object):
     def __init__(self, model):
         self.model = model
@@ -55,6 +83,14 @@ class FixedNumpySeed(object):
         np.random.seed(self.seed)
     def __exit__(self, *args):
         np.random.set_state(self.rng_state)
+
+class Expression(nn.Module):
+    def __init__(self, func):
+        super(Expression, self).__init__()
+        self.func = func
+        
+    def forward(self, x):
+        return self.func(x)
 
 def cosLr(cycle_length, cycle_mult=1):
     def lrSched(epoch):

@@ -11,6 +11,8 @@ def logUniform(low,high,size=None):
     logX = np.random.uniform(np.log(low),np.log(high),size=size)
     return np.exp(logX)
 
+
+
 class RandomErasing(nn.Module):
     '''
     Augmentation module that performs Random Erasing in Random Erasing Data Augmentation by Zhong et al. 
@@ -18,10 +20,11 @@ class RandomErasing(nn.Module):
     probability: The probability that the operation will be performed.
     ave_area_frac: average fraction of img area that is erased
     '''
-    def __init__(self, probability = 0.5, ave_area_frac=.2, max_aspect_ratio=3):
+    def __init__(self, probability = 0.5, ave_area_frac=.2, max_aspect_ratio=3,max_scale=3):
         self.probability = probability
         self.area_frac = ave_area_frac
         self.max_ratio = max_aspect_ratio
+        self.max_scale=max_scale
         super().__init__()
 
     def forward(self, x):
@@ -33,7 +36,7 @@ class RandomErasing(nn.Module):
     def random_erase(self, img):
         bs,c,h,w = img.shape
         area = h*w
-        target_areas = logUniform(1/2, 2,size=bs) *self.area_frac*area
+        target_areas = logUniform(1/self.max_scale, self.max_scale,size=bs) *self.area_frac*area
         aspect_ratios = logUniform(1/self.max_ratio, self.max_ratio,size=bs)
 
         do_erase = np.random.random(bs)<self.probability
@@ -51,6 +54,10 @@ class RandomErasing(nn.Module):
         no_erase_tensor = torch.from_numpy(no_erase_mask.astype(np.float32)).to(img.device)
         return img*no_erase_tensor
 
+class Cutout(RandomErasing):
+    def __init__(self,area_frac=.2):
+        super().__init__(probability=1,ave_area_frac=area_frac,
+                        max_aspect_ratio=1,max_scale=1)
 
 
 class GaussianNoise(nn.Module):

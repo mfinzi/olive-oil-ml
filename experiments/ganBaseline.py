@@ -8,7 +8,7 @@ from oil.model_trainers.classifier import Classifier
 from oil.datasetup.datasets import CIFAR10, C10augLayers
 from oil.datasetup.dataloaders import getLabLoader
 #from oil.architectures.networkparts import layer13,ConvSmallNWN
-from oil.architectures import dcgan,resnetgan,dclikegan
+from oil.architectures.img_gen import dcgan,resnetgan,dclikegan
 from oil.utils.utils import cosLr, loader_to,imap,islice
 
 

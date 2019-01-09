@@ -45,12 +45,12 @@ def oja_grad2(A,w):
 #    matrices A and B are independent
 def SGHA_grad(A,B,w):
     Aw = A@w
-    return -(Aw - (w@Aw)*B@w)
+    return -(Aw - (w@Aw)*(B@w))
 
 # Care must be taken in the dataloading step that
 #    matrices B1 and B2 are independent
 def SGHA_grad2(A,B1,B2,w):
-    return -(A@w - (w@B1@w)*B2@w)
+    return -(A@w - (w@(B1@w))*(B2@w))
 
 def SGHA_subspace_grad(A,B,W):
     AW = A@W

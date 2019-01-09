@@ -1,7 +1,10 @@
 import numpy as np
 import torch
-
+# Use .new_empty()
 class xp2numpy():
+    @staticmethod
+    def new_randn(M,shape):
+        return np.random.randn(*shape)
     @staticmethod
     def new_zeros(M,shape):
         return np.zeros(shape or M.shape,dtype=M.dtype)
@@ -11,6 +14,9 @@ class xp2numpy():
     def __getattr__(self,name):
         return getattr(np,name)
 class xp2torch():
+    @staticmethod
+    def new_randn(M,shape):
+        return torch.randn(*shape,dtype=M.dtype,device =M.device)
     @staticmethod
     def new_zeros(M,shape):
         return M.new_zeros(*shape)

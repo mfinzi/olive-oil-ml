@@ -9,7 +9,7 @@ from copy import deepcopy
 from contextlib import contextmanager
 from itertools import islice
 
-from oil.classifierTrainer import ClassifierTrainer as CnnTrainer
+#from oil.classifierTrainer import ClassifierTrainer as CnnTrainer
 #from oil.datasets import CIFAR10, C10augLayers
 #from oil.networkparts import layer13
 #from oil.schedules import cosLr
