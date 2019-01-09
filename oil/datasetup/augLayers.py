@@ -7,6 +7,51 @@ import torch.nn.functional as F
 import numpy as np
 from math import ceil, floor
 
+def logUniform(low,high,size=None):
+    logX = np.random.uniform(np.log(low),np.log(high),size=size)
+    return np.exp(logX)
+
+class RandomErasing(nn.Module):
+    '''
+    Augmentation module that performs Random Erasing in Random Erasing Data Augmentation by Zhong et al. 
+    -------------------------------------------------------------------------------------
+    probability: The probability that the operation will be performed.
+    ave_area_frac: average fraction of img area that is erased
+    '''
+    def __init__(self, probability = 0.5, ave_area_frac=.2, max_aspect_ratio=3):
+        self.probability = probability
+        self.area_frac = ave_area_frac
+        self.max_ratio = max_aspect_ratio
+    
+    def forward(self, x):
+        if self.training:
+            return self.random_erase(x)
+        else:
+            return x
+
+    def random_erase(self, img):
+        bs,c,h,w = img.shape
+        area = h*w
+        target_areas = logUniform(1/2, 2,size=bs) *self.area_frac*area
+        aspect_ratios = logUniform(1/self.max_ratio, self.max_ratio,size=bs)
+
+        do_erase = np.random.random(bs)<self.probability
+        cut_hs = np.sqrt(target_areas * aspect_ratios)*do_erase
+        cut_ws = np.sqrt(target_areas / aspect_ratios)*do_erase
+        cut_i = np.random.randint(h,size=bs)
+        cut_j = np.random.randint(h,size=bs)
+
+        i,j = np.mgrid[:h,:w]
+        ui = (cut_i+cut_hs/2)[:,None,None]
+        li = (cut_i-cut_hs/2)[:,None,None]
+        uj = (cut_j+cut_ws/2)[:,None,None]
+        lj = (cut_j-cut_ws/2)[:,None,None]
+        no_erase_mask = ~((li<i)&(i<ui)&(lj<j)&(j<uj))[:,None,:,:]
+        no_erase_tensor = torch.from_numpy(no_erase_mask.astype(np.float32)).to(img.device)
+        return img*no_erase_mask
+
+
+
 class GaussianNoise(nn.Module):
     """ Layer that adds pixelwise gaussian noise to input (during train)"""
     def __init__(self, std):
@@ -34,7 +79,7 @@ class RandomHorizontalFlip(nn.Module):
         affineMatrices = np.zeros((bs,2,3))
         affineMatrices[:,0,0] = 2*np.random.randint(2,size=bs)-1
         affineMatrices[:,1,1] = 1
-        affineMatrices = torch.from_numpy(affineMatrices).float().cuda()
+        affineMatrices = torch.from_numpy(affineMatrices).float().to(x.device)
 
         flowgrid = F.affine_grid(affineMatrices, size = x.size())
         x_out = F.grid_sample(x, flowgrid)
@@ -77,7 +122,7 @@ class RandomTranslate(nn.Module):
         affineMatrices[:,1,1] = 1
         affineMatrices[:,0,2] = -2*np.random.randint(-self.max_trans, self.max_trans+1, bs)/w
         affineMatrices[:,1,2] = 2*np.random.randint(-self.max_trans, self.max_trans+1, bs)/h
-        affineMatrices = torch.from_numpy(affineMatrices).float().cuda()
+        affineMatrices = torch.from_numpy(affineMatrices).float().to(x.device)
 
         flowgrid = F.affine_grid(affineMatrices, size = x.size())
         x_out = F.grid_sample(x, flowgrid)
