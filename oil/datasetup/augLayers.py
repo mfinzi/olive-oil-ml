@@ -22,7 +22,8 @@ class RandomErasing(nn.Module):
         self.probability = probability
         self.area_frac = ave_area_frac
         self.max_ratio = max_aspect_ratio
-    
+        super().__init__()
+
     def forward(self, x):
         if self.training:
             return self.random_erase(x)
@@ -48,7 +49,7 @@ class RandomErasing(nn.Module):
         lj = (cut_j-cut_ws/2)[:,None,None]
         no_erase_mask = ~((li<i)&(i<ui)&(lj<j)&(j<uj))[:,None,:,:]
         no_erase_tensor = torch.from_numpy(no_erase_mask.astype(np.float32)).to(img.device)
-        return img*no_erase_mask
+        return img*no_erase_tensor
 
 
 
