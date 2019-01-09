@@ -7,32 +7,48 @@ import numpy as np
 from . import augLayers
 
 
-def CIFAR10(aug=False,path_to_dataset='/scratch/datasets/cifar10/'):
-    """ aug argument turns on pytorch transform augmentations (randomcrop and horiz flip,
-        however: standard usage in this library is to use layer augmentations"""
-    transform_dev = transforms.Compose(
-    [transforms.ToTensor(),
-    transforms.Normalize((0.4914, 0.4822, 0.4465), (.247,.243,.261))])
-    if aug:
-        transform_train = transforms.Compose(
-            [transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip(),
-            transform_dev])
-    else: transform_train = transform_dev
-    
-    trainset = ds.CIFAR10(path_to_dataset, download=True, transform=transform_train)
-    testset = ds.CIFAR10(path_to_dataset, train=False, download=True, transform=transform_dev)
-    return (trainset, testset)
 
-def C10augLayers():
-    layers = nn.Sequential(
+class EasyIMGDataset(object):
+    def __init__(self,*args,gan_normalize=False,download=True,**kwargs):
+        transform = kwargs.pop('transform',None)
+        if not transform: transform = self.default_transform(gan_normalize)
+        super().__init__(*args,transform=transform,download=download,**kwargs)
+
+    def default_transform(self,gan_normalize=False):
+        if gan_normalize: 
+            normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        else:
+            normalize = transforms.Normalize(self.means, self.stds)
+        transform = transform.transforms.Compose(transforms.ToTensor(),normalize)
+        return transform
+
+    def compute_default_transform(self):
+        raise NotImplementedError
+
+class CIFAR10(EasyIMGDataset,ds.CIFAR10):
+    means = (0.4914, 0.4822, 0.4465)
+    stds = (.247,.243,.261)
+    default_aug_layers = nn.Sequential(
         augLayers.RandomTranslate(4),
         augLayers.RandomHorizontalFlip(),
         )
-    return layers
 
+class CIFAR100(EasyIMGDataset,ds.CIFAR100):
+    means = (0.5071, 0.4867, 0.4408)
+    stds = (0.2675, 0.2565, 0.2761)
+    default_aug_layers = nn.Sequential(
+        augLayers.RandomTranslate(4),
+        augLayers.RandomHorizontalFlip(),
+        )
 
-
+class SVHN(EasyIMGDataset,ds.SVHN):
+    #TODO: Find real mean and std
+    means = (0.5, 0.5, 0.5)
+    stds = (0.5, 0.5, 0.5)
+    default_aug_layers = nn.Sequential(
+        augLayers.RandomTranslate(4),
+        augLayers.RandomHorizontalFlip(),
+        )
 
 
 
