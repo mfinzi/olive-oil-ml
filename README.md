@@ -1,6 +1,6 @@
 # Oil
 
-Library for accelerating deep learning research.
+Library for slowing down deep learning research. Some things are best enjoyed leisurely.
 
 #To install, run "python setup.py install"
 conda install nodejs

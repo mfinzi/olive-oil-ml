@@ -10,4 +10,5 @@ __pycache__
 *.pdf
 *.lexicog
 *.npz
+*.npy
 .experiments/runs/
