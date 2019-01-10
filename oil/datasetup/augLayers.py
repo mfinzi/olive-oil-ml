@@ -6,13 +6,9 @@ import numbers
 import torch.nn.functional as F
 import numpy as np
 from math import ceil, floor
+from ..utils.utils import log_uniform
 
-def logUniform(low,high,size=None):
-    logX = np.random.uniform(np.log(low),np.log(high),size=size)
-    return np.exp(logX)
-
-
-
+    
 class RandomErasing(nn.Module):
     '''
     Augmentation module that performs Random Erasing in Random Erasing Data Augmentation by Zhong et al. 
@@ -36,8 +32,8 @@ class RandomErasing(nn.Module):
     def random_erase(self, img):
         bs,c,h,w = img.shape
         area = h*w
-        target_areas = logUniform(1/self.max_scale, self.max_scale,size=bs) *self.area_frac*area
-        aspect_ratios = logUniform(1/self.max_ratio, self.max_ratio,size=bs)
+        target_areas = log_uniform(1/self.max_scale, self.max_scale,size=bs)*self.area_frac*area
+        aspect_ratios = log_uniform(1/self.max_ratio, self.max_ratio,size=bs)
 
         do_erase = np.random.random(bs)<self.probability
         cut_hs = np.sqrt(target_areas * aspect_ratios)*do_erase
@@ -55,6 +51,7 @@ class RandomErasing(nn.Module):
         return img*no_erase_tensor
 
 class Cutout(RandomErasing):
+    """ A simplificaiton to the square case with deterministic size: cutout (works a bit worse)"""
     def __init__(self,area_frac=.2):
         super().__init__(probability=1,ave_area_frac=area_frac,
                         max_aspect_ratio=1,max_scale=1)
