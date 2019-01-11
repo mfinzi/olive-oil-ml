@@ -81,7 +81,9 @@ class LazyLogger(LogTimer, MaybeTbWriterWSerial):
         for unreported_info in self._unreported.values():
             print(unreported_info)#+'\n')
         self._unreported = {}
-        print(self.emas())
+        emas = self.emas()
+        print(emas)
+        return emas
 
     @property # Needs to be read only
     def log_dir(self):

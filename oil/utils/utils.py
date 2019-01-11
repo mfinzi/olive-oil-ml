@@ -9,6 +9,10 @@ import os
 import dill
 import itertools
 
+def log_uniform(low,high,size=None):
+    logX = np.random.uniform(np.log(low),np.log(high),size)
+    return np.exp(logX)
+
 class ReadOnlyDict(dict):
     def __readonly__(self, *args, **kwargs):
         raise RuntimeError("Cannot modify ReadOnlyDict")
