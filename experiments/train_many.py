@@ -10,24 +10,26 @@ from oil.datasetup.dataloaders import getLabLoader
 from oil.datasetup.augLayers import RandomErasing
 from oil.architectures.img_classifiers.networkparts import layer13
 from oil.utils.utils import cosLr, loader_to
-from oil.tuning.configGenerator import uniform,logUniform,sampleFrom
+from oil.tuning.configGenerator import uniform,logUniform,sample_config
 from oil.tuning.slurmDispatch import TrainerFit, Study
-
+#import pandas as pd
+#pd.set_option('display.max_colwidth', 1000)
+#pd.set_option('display.expand_frame_repr', False)
 config_spec = {
     'dataset': [CIFAR10,CIFAR100],
-    'net_config': {'numClasses':sampleFrom(lambda cfg: cfg['dataset'].num_classes)},
+    'net_config': {'numClasses':lambda cfg: cfg['dataset'].num_classes},
     'loader_config': {'amnt_dev':5000,'lab_BS':50},
     'opt_config':{'lr':.1, 'momentum':.9, 'weight_decay':1e-4},
-    'sched_config':{'cycle_length':50},
-    'cutout_config':{'p':uniform(.4,1),'af':logUniform(.1,.5),'ar':logUniform(1,3)},
+    'sched_config':{'cycle_length':100},
+    'cutout_config':{'p':uniform(.3,1),'af':logUniform(.1,.5),'ar':logUniform(1,3)},
     'trainer_config':{}
 }
 log_dir_base = os.path.expanduser('~/tb-experiments/cutout/')
-config_spec['trainer_config']['log_dir'] = sampleFrom(lambda cfg:log_dir_base+\
-        '{}/{}/'.format(cfg['dataset'].__name__,np.random.randint(10**5)))
+config_spec['trainer_config']['log_dir'] = lambda cfg:log_dir_base+\
+        '{}/{}/'.format(cfg['dataset'],np.random.randint(10**5))
 
 def makeTrainer(cfg):
-    trainset = cfg['dataset']('~/datasets/{}/'.format(cfg['dataset'].__name__))
+    trainset = cfg['dataset']('~/datasets/{}/'.format(cfg['dataset']))
     device = torch.device('cuda')
     fullCNN = nn.Sequential(
         trainset.default_aug_layers(),

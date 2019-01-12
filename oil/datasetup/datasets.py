@@ -7,8 +7,11 @@ import numpy as np
 from . import augLayers
 
 
+class Named(type):
+    def __str__(self):
+        return self.__name__
 
-class EasyIMGDataset(object):
+class EasyIMGDataset(object,metaclass=Named):
     def __init__(self,*args,gan_normalize=False,download=True,**kwargs):
         transform = kwargs.pop('transform',None)
         if not transform: transform = self.default_transform(gan_normalize)

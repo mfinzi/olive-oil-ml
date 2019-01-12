@@ -22,7 +22,7 @@ class TrainerFit(Trial):
         for search pruning, hyperband, etc."""
     def __init__(self,make_trainer,epochs,cfg):
         self.trainer = make_trainer(cfg)
-        self.trainer.logger.add_text('Config',cfg)
+        self.trainer.logger.add_scalars('Config',flatten(cfg))
         if isinstance(epochs,collections.Iterable):
             self.epochs = epochs
         else:
@@ -74,9 +74,9 @@ class Study(object):
             cfg = sample_config(self.config_spec)
             trial = self.make_trial(cfg)
             outcome = trial.run()
-            self.configs.append(cfg)
-            self.outcomes.append(outcome)
-            torch.save(self,"study.S",pickle_module=dill)
+            self.configs.append(cfg,ignore_index=True)
+            self.outcomes.append(outcome,ignore_index=True)
+            torch.save(self,"study.s",pickle_module=dill)
             # if self.slurm:
             #     serial_cfg = dill.dumps(cfg)
             #     serial_trial_maker = dill.dumps(self.trial_maker)
@@ -86,3 +86,6 @@ class Study(object):
             #     self.trial_maker(cfg)
             #subprocess.call(self.run_cmd+['apply', serial_mapper,serial_cfg,str(i)])
 
+class Dispatcher(object):
+    def __init__(self):
+        raise NotImplementedError

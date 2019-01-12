@@ -2,7 +2,13 @@ import pandas as pd
 import time
 
 class LogTimer(object):
+        """ Timer to automatically control time spent on expensive logs
+                    by not logging when computations performed in __enter__
+                    exceed the specified fraction of total time outside.
+        """
         def __init__(self, minPeriod = 1, timeFrac = 1/10, **kwargs):
+            """ minPeriod: minimum time between logs.
+                timeFrac: max fraction of total time spent inside __enter__ block."""
             self.avgLogTime = 0
             self.numLogs = 0
             self.lastLogTime = 0
@@ -29,15 +35,8 @@ class LogTimer(object):
                 self.lastLogTime = time.time()
 
 
-# class Silent(object):
-#     def __init__(self,*args,**kwargs):
-#         pass#super().__init__(*args,**kwargs)
-#     def __getattr__(self, name):
-#         if not hasattr(Silent, name):
-#             return (lambda *args, **kwargs:None)
-# def silent(*args,**kwargs):
-#     pass
-
+# If tensorboardX fails to load, we replace it with a writer
+# that does nothing
 class NothingWriter(object):
     add_scalar = add_scalars = add_scalars_to_json = add_image \
     = add_image_with_boxes = add_figure = add_video = add_audio \
@@ -45,7 +44,6 @@ class NothingWriter(object):
     = add_pr_curve_raw = close = lambda *args,**kwargs:None
     def __init__(self, log_dir=None,comment='',**kwargs):
         return super().__init__(**kwargs)
-
 try: 
     import tensorboardX
     MaybeTbWriter = tensorboardX.SummaryWriter
@@ -63,10 +61,19 @@ class MaybeTbWriterWSerial(MaybeTbWriter):
 
 
 class LazyLogger(LogTimer, MaybeTbWriterWSerial):
-    """ Thin wrapper around tensorboardX summarywriter,
-        non tensorboard logging functionality to come
+    """ Tensorboard logging to log_dir, logged scalars are also stored to 
+        a pandas dataframe called constants. Logged text is additionally
+        store in a dictionary called text.
+        Lazy context manager functionality allows controlling time spent on
+        expensive logging operations to a fixed fraction. See LogTimer for
+        more details.
     """ 
     def __init__(self, log_dir = None, no_print=False, ema_com=0, **kwargs):
+        """ log_dir: Where tensorboardX logs are saved, tb default
+            no_print: if True printing is disabled
+            ema_com: if nonzero, emas and report show the exponential moving
+                       average of tracked scalars
+        """
         self.text = {}
         self.constants = {}
         self.scalar_frame = pd.DataFrame()
@@ -77,6 +84,7 @@ class LazyLogger(LogTimer, MaybeTbWriterWSerial):
         super().__init__(log_dir=log_dir, **kwargs)
 
     def report(self):
+        """ prints all unreported text and constants, prints scalar emas"""
         if self.no_print: return
         for unreported_info in self._unreported.values():
             print(unreported_info)#+'\n')
@@ -95,19 +103,25 @@ class LazyLogger(LogTimer, MaybeTbWriterWSerial):
         return self.scalar_frame.ewm(com=self._com).mean().iloc[-1:]
 
     def add_text(self, tag, text_string):
+        """ text_string is logged (into text and tensorboard)
+            tag can be specified to allow overwrites so that
+            a frequently logged text under a tag will only show
+            the most recent after a report """
         try: self.text[tag].add(text_string)
         except KeyError: self.text[tag] = {text_string}
         self._unreported[tag] = text_string
-        #TB writer add_text doesn't work properly?
-        #super().add_text(tag, text_string)
+        super().add_text(tag, text_string)
 
     def _add_constants(self, tag, dic):
         try: self.constants[tag].update(dic)
         except KeyError: self.constants[tag] = dic
-        for k,v in dic.items():
-            super().add_text('Constants/'+tag, "{}:{}".format(k,v))
+        with pd.option_context('display.expand_frame_repr',False):
+            self.add_text('Constants/{}'.format(tag),str(pd.Series(dic).to_frame(tag).T))
 
     def add_scalars(self, tag, dic, step=None, walltime=None):
+        """ Like tensorboard add_scalars, but if step and walltime
+             are not specified, the dic is assumed to hold constants
+             which are logged as text using add_text"""
         if step is None and walltime is None:
             self._add_constants(tag,dic)
         else:

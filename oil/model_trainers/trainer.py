@@ -27,7 +27,7 @@ class Trainer(object):
         # Extra work to do (used for subclass)
         extraInit()
         # Log the hyper parameters
-        self.logger.add_scalars('ModelSpec', self.hypers)
+        self.logger.add_scalars('hypers', self.hypers)
 
     def train_to(self, final_epoch=100):
         return self.train(final_epoch-self.epoch)
