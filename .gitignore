@@ -11,4 +11,5 @@ __pycache__
 *.lexicog
 *.npz
 *.npy
+*.s
 .experiments/runs/
