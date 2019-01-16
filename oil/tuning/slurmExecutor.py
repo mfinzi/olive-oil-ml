@@ -7,15 +7,8 @@ import tempfile
 import atexit
 import subprocess
 from concurrent import futures
-
-DEFAULT_SBATCH_SETTINGS = {
-    'N':1,
-    'c':4,
-    'mem':12000,
-    'time': '24:00:00',
-    'partition':'default_gpu',
-    'gres':'gpu:1',
-}
+from functools import partial
+import itertools
 
 def kwargs_to_list(kwargs):
     return ["%s%s"%(('--'+k+'=',v) if len(k)>1
@@ -26,8 +19,8 @@ def tmp_file_name(suffix=".sh"):
     atexit.register(os.unlink, t)
     return t
 
-class SlurmPoolExecutor(futures.ThreadPoolExecutor):
-    def __init__(self,*args,slurm_cfg=DEFAULT_SBATCH_SETTINGS,**kwargs):
+class SlurmExecutor(futures.ThreadPoolExecutor):
+    def __init__(self,*args,slurm_cfg={},**kwargs):
         self.slurm_cfg = slurm_cfg
         super().__init__(*args,**kwargs)
 
@@ -45,6 +38,36 @@ class SlurmPoolExecutor(futures.ThreadPoolExecutor):
                 function_output = dill.load(funcfile)
             return function_output
         return super().submit(todo)
+
+    def map(self, fn, *iterables, timeout=None, chunksize=1):
+        """ Identical to the chunky ProcessPoolExecutor implementation,
+            but underlying parts aren't exposed """
+        if chunksize < 1:
+            raise ValueError("chunksize must be >= 1.")
+        results = super().map(partial(_process_chunk, fn),
+                              _get_chunks(*iterables, chunksize=chunksize),
+                              timeout=timeout)
+        return _chain_from_iterable_of_lists(results)
+
+def _process_chunk(fn, chunk):
+    return [fn(*args) for args in chunk]
+def _get_chunks(*iterables, chunksize):
+    it = zip(*iterables)
+    while True:
+        chunk = tuple(itertools.islice(it, chunksize))
+        if not chunk:
+            return
+        yield chunk
+def _chain_from_iterable_of_lists(iterable):
+    for element in iterable:
+        element.reverse()
+        while element:
+            yield element.pop()
+
+class LocalExecutor(futures.ProcessPoolExecutor):
+    """ Wraps ProcessPoolExecutor but distributes local gpus to the
+        processes """
+    raise NotImplementedError
 
 if __name__=='__main__':
     with open(sys.argv[1], 'rb') as funcfile:

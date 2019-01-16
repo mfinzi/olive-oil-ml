@@ -91,20 +91,26 @@ class Trainer(object):
         self.optimizer.load_state_dict(state['optim_state'])
         self.logger.load_state_dict(state['logger_state'])
 
-    def save_checkpoint(self, save_path = None):
+
+    def default_save_path(self,save_path = None,suffix=''):
         if save_path is None: 
             checkpoint_save_dir = self.logger.log_dir + 'checkpoints/'
-            save_path = checkpoint_save_dir + 'c.{}.ckpt'.format(self.epoch+1)
+            save_path = checkpoint_save_dir + 'c{}{}.ckpt'.format(self.epoch+1,suffix)
             #save_path_all = checkpoint_save_dir + 'c.{}.dump'.format(self.epoch)
         else:
             checkpoint_save_dir = os.path.dirname(save_path)
           # so that we use the same subset of data as before
         os.makedirs(checkpoint_save_dir, exist_ok=True)
+        return save_path
+
+    def save_checkpoint(self, save_path = None, suffix=''):
+        save_path = self.default_save_path(save_path,suffix+'.ckpt')
         torch.save(self.state_dict(), save_path, pickle_module=dill)
+        return save_path
 
     def load_checkpoint(self, load_path = None):
         if load_path is None:
-            all_ckpts = glob.glob(self.logger.log_dir+'checkpoints/c.*.ckpt')
+            all_ckpts = glob.glob(self.logger.log_dir+'checkpoints/*.ckpt')
             #TODO: Fix ordering bug where 1,10,11,12,...,19,2,20,21,...
             #  -- use natsort
             load_path = all_ckpts[-1]
