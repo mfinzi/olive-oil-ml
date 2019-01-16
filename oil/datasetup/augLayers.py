@@ -16,10 +16,10 @@ class RandomErasing(nn.Module):
     probability: The probability that the operation will be performed.
     ave_area_frac: average fraction of img area that is erased
     '''
-    def __init__(self, probability = 0.5, ave_area_frac=.2, max_aspect_ratio=3,max_scale=3):
-        self.probability = probability
-        self.area_frac = ave_area_frac
-        self.max_ratio = max_aspect_ratio
+    def __init__(self, p = 0.5, af=.2, ar=3,max_scale=3):
+        self.p = p
+        self.area_frac = af
+        self.max_ratio = ar
         self.max_scale=max_scale
         super().__init__()
 
@@ -35,7 +35,7 @@ class RandomErasing(nn.Module):
         target_areas = log_uniform(1/self.max_scale, self.max_scale,size=bs)*self.area_frac*area
         aspect_ratios = log_uniform(1/self.max_ratio, self.max_ratio,size=bs)
 
-        do_erase = np.random.random(bs)<self.probability
+        do_erase = np.random.random(bs)<self.p
         cut_hs = np.sqrt(target_areas * aspect_ratios)*do_erase
         cut_ws = np.sqrt(target_areas / aspect_ratios)*do_erase
         cut_i = np.random.randint(h,size=bs)
@@ -53,7 +53,7 @@ class RandomErasing(nn.Module):
 class Cutout(RandomErasing):
     """ A simplificaiton to the square case with deterministic size: cutout (works a bit worse)"""
     def __init__(self,area_frac=.2):
-        super().__init__(probability=1,ave_area_frac=area_frac,
+        super().__init__(p=1,ave_area_frac=area_frac,
                         max_aspect_ratio=1,max_scale=1)
 
 
