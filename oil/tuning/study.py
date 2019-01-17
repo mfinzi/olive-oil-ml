@@ -19,7 +19,7 @@ DEFAULT_SLURM_SETTINGS = {
     'mem':24000,
     'time': '24:00:00',
     'partition':'default_gpu',
-    'gres':'gpu:1',
+    'gres':'gpu:1080ti:1',
 }
 
 class Study(object):
