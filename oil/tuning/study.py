@@ -11,7 +11,7 @@ from oil.tuning.slurmExecutor import SlurmExecutor, LocalExecutor
 DEFAULT_SLURM_SETTINGS = {
     'N':1,
     'c':1,
-    'mem':12000,
+    'mem':24000,
     'time': '24:00:00',
     'partition':'default_gpu',
     'gres':'gpu:1',

@@ -71,11 +71,14 @@ def _chain_from_iterable_of_lists(iterable):
         while element:
             yield element.pop()
 
+
 class LocalExecutor(futures.ProcessPoolExecutor):
-    """ Wraps ProcessPoolExecutor but distributes local gpus to the
-        processes """
-    def __init__(self,*args,**kwargs):
-        raise NotImplementedError
+    """Wraps ProcessPoolExecutor but distributes local gpus to the
+        processes #TODO: restrict gpu allocation. At the moment restricts
+        to sequential (single core) execution."""
+    def __init__(max_workers=1,*args,**kwargs):
+        super().__init__(max_workers=1,*args,**kwargs)
+        
 
 if __name__=='__main__':
     if sys.argv[2]!='no_session':
