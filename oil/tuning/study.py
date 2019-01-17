@@ -5,8 +5,13 @@ import collections
 import pandas as pd
 import torch
 import concurrent
+import disutils
 from functools import partial
 from oil.tuning.slurmExecutor import SlurmExecutor, LocalExecutor
+
+
+def slurm_available():
+    return distutils.spawn.find_executable('salloc') is not None
 
 DEFAULT_SLURM_SETTINGS = {
     'N':1,
@@ -24,10 +29,10 @@ class Study(object):
         self.config_spec = config_spec
         slurm_settings = {**DEFAULT_SLURM_SETTINGS,**slurm_cfg}
         self.Executor = partial(SlurmExecutor,slurm_cfg=slurm_settings) \
-                               if slurm else LocalExecutor
+                               if slurm_available() else LocalExecutor
         self.configs = pd.DataFrame()
         self.outcomes = pd.DataFrame()
-
+        self.name = study_name or __file__[:-3]
     def flat_configs(self):
         flat_cfgs = pd.DataFrame()
         for row in self.configs.apply(flatten_dict,axis=1):
