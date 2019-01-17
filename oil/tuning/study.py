@@ -1,7 +1,6 @@
 import dill
 from .configGenerator import sample_config, flatten_dict
 import subprocess
-from slurmpy import Slurm
 import collections
 import pandas as pd
 import torch
