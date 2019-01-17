@@ -5,7 +5,7 @@ import collections
 import pandas as pd
 import torch
 import concurrent
-import distutils
+import distutils.spawn
 from functools import partial
 from oil.tuning.slurmExecutor import SlurmExecutor, LocalExecutor
 
