@@ -1,5 +1,5 @@
 import dill
-from .configGenerator import sample_config, flatten
+from .configGenerator import sample_config, flatten_dict
 import subprocess
 from slurmpy import Slurm
 import collections
@@ -11,29 +11,27 @@ from oil.tuning.slurmExecutor import SlurmExecutor, LocalExecutor
 
 DEFAULT_SLURM_SETTINGS = {
     'N':1,
-    'c':2,
+    'c':1,
     'mem':12000,
-    't': '24:00:00',
+    'time': '24:00:00',
     'partition':'default_gpu',
     'gres':'gpu:1',
 }
 
-# STUDY object 
 class Study(object):
     def __init__(self, perform_trial, config_spec,
-                        slurm=True, slurm_config={}, study_name=None):
+                        slurm=True, slurm_cfg={}, study_name=None):
         self.perform_trial = perform_trial
         self.config_spec = config_spec
-
-        slurm_cfg = {**DEFAULT_SLURM_SETTINGS}.update(slurm_config)
-        self.Executor = partial(SlurmExecutor,slurm_cfg=slurm_cfg) \
-                                if slurm else LocalExecutor
+        slurm_settings = {**DEFAULT_SLURM_SETTINGS,**slurm_cfg}
+        self.Executor = partial(SlurmExecutor,slurm_cfg=slurm_settings) \
+                               if slurm else LocalExecutor
         self.configs = pd.DataFrame()
         self.outcomes = pd.DataFrame()
 
     def flat_configs(self):
         flat_cfgs = pd.DataFrame()
-        for row in self.configs.apply(flatten,axis=1):
+        for row in self.configs.apply(flatten_dict,axis=1):
             flat_cfgs.append(row,ignore_index=True)
         return flat_cfgs
 
@@ -41,19 +39,20 @@ class Study(object):
         if new_config_spec: self.config_spec=new_config_spec
         with self.Executor(max_workers) as executor:
             futures = [executor.submit(self.perform_trial,
-                        sample_config(self.config_spec)) for _ in range(num_trials)]
+                        sample_config(self.config_spec),i) for i in range(num_trials)]
             for future in concurrent.futures.as_completed(futures):
                 cfg, outcome = future.result()
                 self.configs.append(cfg,ignore_index=True)
                 self.outcomes.append(outcome,ignore_index=True)
                 torch.save(self,"study.s",pickle_module=dill)
 
-def train_trial(make_trainer,epochs):
+def train_trial(make_trainer):
     """ a common trainer trial use case """
-    def _perform_trial(cfg):
+    def _perform_trial(cfg,i):
+        cfg['trainer_config']['log_dir'] += 'trial{}/'.format(i)
         trainer = make_trainer(cfg)
-        trainer.logger.add_scalars('Config',flatten(cfg))
-        outcome = trainer.train(epochs)
+        trainer.logger.add_scalars('Config',flatten_dict(cfg))
+        outcome = trainer.train(cfg['num_epochs'])
         save_path = trainer.default_save_path(suffix='.trainer')
         torch.save(trainer,save_path,pickle_module=dill)
         outcome['saved_at']=save_path

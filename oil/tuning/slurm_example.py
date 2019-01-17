@@ -2,6 +2,7 @@ from oil.tuning.slurmExecutor import SlurmExecutor
 import subprocess
 import concurrent
 import time
+import multiprocessing
 
 # "Worker" functions.
 def square(n):
@@ -11,7 +12,6 @@ def hostinfo(a):
 def gpustat(a):
     return subprocess.check_output('gpustat', shell=True).decode()#.split()
 def cpu_count():
-    import multiprocessing
     return multiprocessing.cpu_count()
 def example_1():
     """Square some numbers on remote hosts!
@@ -26,7 +26,7 @@ def example_2():
     our jobs.
     """
     with SlurmExecutor(max_workers=5) as executor:
-        futures = [executor.submit(gpustat) for n in range(5)]
+        futures = [executor.submit(cpu_count) for n in range(5)]
         print('Some cluster nodes:')
         for future in concurrent.futures.as_completed(futures):
             print(future.result())
@@ -35,7 +35,7 @@ def example_3():
     """Demonstrates the use of the map() convenience function.
     """
     start = time.time()
-    with SlurmExecutor(max_workers=5) as exc:
+    with SlurmExecutor(max_workers=5,clone_session=False) as exc:
         print(''.join(list(exc.map(hostinfo,range(10),chunksize=1))))
     print("Taking a total time of:",time.time()-start)
 

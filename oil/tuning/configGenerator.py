@@ -45,7 +45,7 @@ def sample_config(config_spec):
         cfg_all, more_work = _sample_config(cfg_all,cfg_all)
         i+=1
         if i>10: raise RecursionError("config dependency unresolvable")
-    return ReadOnlyDict(cfg_all)
+    return dict(cfg_all)#ReadOnlyDict(cfg_all)
 
 def _sample_config(config_spec,cfg_all):
     cfg = NoGetItLambdaDict()
@@ -64,3 +64,13 @@ def _sample_config(config_spec,cfg_all):
                 more_work = True
         else: cfg[k] = v
     return cfg, more_work
+
+def flatten_dict(d):
+    """ Flattens a dictionary, ignoring outer keys. """
+    out = {}
+    for k,v in d.items():
+        if isinstance(v,dict):
+            out.update(flatten_dict(v))
+        else:
+            out[k] = v
+    return out

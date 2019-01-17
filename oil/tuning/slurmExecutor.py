@@ -20,8 +20,14 @@ def tmp_file_name(suffix=".sh"):
     return t
 
 class SlurmExecutor(futures.ThreadPoolExecutor):
-    def __init__(self,*args,slurm_cfg={},**kwargs):
+    def __init__(self,*args,slurm_cfg={},clone_session=True,**kwargs):
         self.slurm_cfg = slurm_cfg
+        # Dump the python session
+        if clone_session:
+            self.session_file_name = tmp_file_name(".pkl")
+            dill.dump_session(self.session_file_name)
+        else:
+            self.session_file_name = 'no_session'
         super().__init__(*args,**kwargs)
 
     def submit(self,fn,*args,**kwargs):
@@ -29,11 +35,12 @@ class SlurmExecutor(futures.ThreadPoolExecutor):
             with open(tmp_file_name(), 'wb+') as funcfile:
                 dill.dump((fn,args,kwargs),funcfile)
             with open(tmp_file_name(), "wb+") as sh_script:
-                sh_script.write(os.fsencode('#!/bin/sh\n{} slurmExecutor.py {}'\
-                                                    .format(sys.executable,funcfile.name)))
-                os.fchmod(sh_script.fileno(), stat.S_IRWXU | stat.S_IRWXG | stat.S_IROTH | stat.S_IXOTH)
+                sh_script.write(os.fsencode('#!/bin/sh\n{} {} {} {}'\
+                        .format(sys.executable,os.path.realpath(__file__),
+                        funcfile.name,self.session_file_name)))
+                os.fchmod(sh_script.fileno(),stat.S_IRWXU|stat.S_IRWXG|stat.S_IROTH|stat.S_IXOTH)
             cfg_args = kwargs_to_list(self.slurm_cfg)
-            out = subprocess.check_output(['srun',*cfg_args,sh_script.name]).strip()
+            subprocess.call(['srun',*cfg_args,sh_script.name])
             with open(funcfile.name, 'rb') as funcfile:
                 function_output = dill.load(funcfile)
             return function_output
@@ -67,9 +74,12 @@ def _chain_from_iterable_of_lists(iterable):
 class LocalExecutor(futures.ProcessPoolExecutor):
     """ Wraps ProcessPoolExecutor but distributes local gpus to the
         processes """
-    raise NotImplementedError
+    def __init__(self,*args,**kwargs):
+        raise NotImplementedError
 
 if __name__=='__main__':
+    if sys.argv[2]!='no_session':
+        dill.load_session(sys.argv[2])
     with open(sys.argv[1], 'rb') as funcfile:
         (fn,args,kwargs) = dill.load(funcfile)
         out = fn(*args,**kwargs)
