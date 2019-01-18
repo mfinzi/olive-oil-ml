@@ -69,6 +69,7 @@ class Study(object):
                     print(self.configs.iloc[-1:])
                     print(self.outcomes.iloc[-1:])
                 self.logger.save_object(self,'study.s')
+                # TODO show current best?
 
 def train_trial(make_trainer,strict=False):
     """ a common trainer trial use case: make_trainer, train, return cfg and emas"""
@@ -86,3 +87,22 @@ def train_trial(make_trainer,strict=False):
             if strict: raise
             else: return cfg, e
     return _perform_trial
+
+class trainTrial:
+    """ a common trainer trial use case: make_trainer, train, return cfg and emas"""
+    def __init__(self, make_trainer,strict=False):
+        self.make_trainer = make_trainer
+        self.strict = strict
+    def __call__(self,cfg,i):
+        try:
+            cfg['trainer_config']['log_dir'] += 'trial{}/'.format(i)
+            trainer = self.make_trainer(cfg)
+            trainer.logger.add_scalars('config',flatten_dict(cfg))
+            outcome = trainer.train(cfg['num_epochs'])
+            save_path = trainer.default_save_path(suffix='.trainer')
+            torch.save(trainer,save_path,pickle_module=dill)
+            cfg['saved_at']=save_path
+            return cfg, outcome
+        except Exception as e:
+            if self.strict: raise
+            else: return cfg, e
