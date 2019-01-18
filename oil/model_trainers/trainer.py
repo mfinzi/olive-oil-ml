@@ -35,7 +35,7 @@ class Trainer(object):
     def train(self, num_epochs=100):
         """ The main training loop"""
         start_epoch = self.epoch
-        for self.epoch in tqdm(range(start_epoch, start_epoch + num_epochs)):
+        for self.epoch in tqdm(range(start_epoch, start_epoch + num_epochs),desc='train'):
             [sched.step(self.epoch) for sched in self.lr_schedulers]
             for i, minibatch in enumerate(self.dataloaders['train']):
                 with self.logger as do_log:

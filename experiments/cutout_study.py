@@ -22,7 +22,7 @@ config_spec = {
     'net_config': {'numClasses':lambda cfg: cfg['dataset'].num_classes},
     'loader_config': {'amnt_dev':5000,'lab_BS':50},
     'opt_config':{'lr':.1, 'momentum':.9, 'weight_decay':1e-4},
-    'num_epochs':100,
+    'num_epochs':1,
     'cutout_config':{'p':uniform(.3,1),'af':logUniform(.1,.5),'ar':logUniform(1,3)},
     'trainer_config':{}
 }
@@ -45,8 +45,8 @@ def makeTrainer(cfg):
 
     opt_constr = lambda params: torch.optim.SGD(params, **cfg['opt_config'])
     lr_sched = cosLr(cfg['num_epochs'])
-    return Classifier(fullCNN,dataloaders,opt_constr,lr_sched,**cfg['trainer_config'])
+    return Classifier(fullCNN,dataloaders,opt_constr,lr_sched,**cfg['trainer_config'],log_args={'no_print':True})
 
 do_trial = train_trial(makeTrainer)
 cutout_study = Study(do_trial,config_spec, slurm_cfg={'time':'2:00:00'})
-cutout_study.run(num_trials=10,max_workers=5)
+cutout_study.run(num_trials=2,max_workers=5)

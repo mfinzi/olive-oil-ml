@@ -1,5 +1,6 @@
 
 import numpy as np
+import numbers
 from ..utils.utils import log_uniform,ReadOnlyDict
 from collections import Iterable
 # class SearchVariation(object):
@@ -66,11 +67,15 @@ def _sample_config(config_spec,cfg_all):
     return cfg, more_work
 
 def flatten_dict(d):
-    """ Flattens a dictionary, ignoring outer keys. """
+    """ Flattens a dictionary, ignoring outer keys. Only
+        numbers and strings allowed, others will be converted
+        to a string. """
     out = {}
     for k,v in d.items():
         if isinstance(v,dict):
             out.update(flatten_dict(v))
-        else:
+        elif isinstance(v,(numbers.Number,str,bytes)):
             out[k] = v
+        else:
+            out[k] = str(v)
     return out

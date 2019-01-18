@@ -1,5 +1,8 @@
 import pandas as pd
+import torch
 import time
+import os
+import dill
 
 class LogTimer(object):
         """ Timer to automatically control time spent on expensive logs
@@ -100,6 +103,7 @@ class LazyLogger(LogTimer, MaybeTbWriterWSerial):
     def emas(self):
         """ Returns the exponential moving average of the logged
             scalars (not consts) """
+        #print(self.scalar_frame.ewm(com=self._com).mean().iloc[-1:])
         return self.scalar_frame.ewm(com=self._com).mean().iloc[-1:]
 
     def add_text(self, tag, text_string):
@@ -129,6 +133,12 @@ class LazyLogger(LogTimer, MaybeTbWriterWSerial):
             newRow = pd.DataFrame(dic, index = [i])
             self.scalar_frame = self.scalar_frame.combine_first(newRow)
             super().add_scalars(tag, dic, step)#, walltime=walltime) #TODO: update tensorboardX?
+
+    def save_object(self,obj,suffix):
+        final_path = self.log_dir+suffix
+        os.makedirs(os.path.dirname(final_path),exist_ok=True)
+        torch.save(obj,final_path,pickle_module=dill)
+        return os.path.abspath(final_path)
 
     def state_dict(self):
         # Will there be a problem with pickling the log_timer here?
