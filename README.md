@@ -2,9 +2,14 @@
 
 Library for slowing down deep learning research. Some things are best enjoyed leisurely.
 
-#To install, run "python setup.py install"
-conda install nodejs
-conda install tqdm
-jupyter labextension install @jupyter-widgets/jupyterlab-manager
+Version -0.1
+Currently, automatic installation is broken. You will need to add the location of the github repo to your python path.
+For example, I have: export PYTHONPATH=$PYTHONPATH:/home/marc/pristine-ml/ but you can contact me for more details.
 
-Dependencies: Python 3.6, Pytorch 0.40, Torchvision, Numpy, (optional) tqdm, (optional) TensorboardX
+
+#To install, run "python setup.py install"
+#conda install nodejs
+#conda install tqdm
+#jupyter labextension install @jupyter-widgets/jupyterlab-manager
+
+Dependencies: Python 3.6, Pytorch 1.0, Pandas, Torchvision, Numpy, (optional) tqdm, (optional) TensorboardX
