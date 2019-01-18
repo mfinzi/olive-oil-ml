@@ -103,7 +103,6 @@ class LazyLogger(LogTimer, MaybeTbWriterWSerial):
     def emas(self):
         """ Returns the exponential moving average of the logged
             scalars (not consts) """
-        #print(self.scalar_frame.ewm(com=self._com).mean().iloc[-1:])
         return self.scalar_frame.ewm(com=self._com).mean().iloc[-1:]
 
     def add_text(self, tag, text_string):
@@ -130,8 +129,7 @@ class LazyLogger(LogTimer, MaybeTbWriterWSerial):
             self._add_constants(tag,dic)
         else:
             i = step if step is not None else walltime
-            newRow = pd.DataFrame(dic, index = [i])
-            self.scalar_frame = self.scalar_frame.combine_first(newRow)
+            self.scalar_frame.loc[i] = pd.Series(dic)
             super().add_scalars(tag, dic, step)#, walltime=walltime) #TODO: update tensorboardX?
 
     def save_object(self,obj,suffix):

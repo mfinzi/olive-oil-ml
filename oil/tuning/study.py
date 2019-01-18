@@ -61,15 +61,35 @@ class Study(object):
             for j, future in enumerate(tqdm(concurrent.futures.as_completed(futures),
                                             total=len(futures),desc=self.name)):
                 cfg, outcome = future.result()
-                cfg_row = pd.DataFrame(flatten_dict(cfg),index=['config {}'.format(j)])
-                outcome_row = outcome.iloc[-1].to_frame('outcome {}'.format(j)).T
-                self.configs = self.configs.append(cfg_row)
-                self.outcomes = self.outcomes.append(outcome_row)
+                self.configs.loc['config {}'.format(j)] = pd.Series(flatten_dict(cfg))
+                self.outcomes.loc['outcome {}'.format(j)] = pd.Series(outcome.iloc[-1])
                 with pd.option_context('display.expand_frame_repr',False):
                     print(self.configs.iloc[-1:])
                     print(self.outcomes.iloc[-1:])
                 self.logger.save_object(self,'study.s')
-                # TODO show current best?
+                # TODO log current best? start with add_text current best 
+                # & add_scalars of current best outcome
+
+    # Planned: convenience functions for analyzing study data
+                # filter out config hypers that are shared
+
+
+# Plan for pruning support (e.g. median rule, hyperband)
+        # Support for trials that train in segments via generators
+        # num_epochs can either be a number or an iteratable
+        # _perform_trial will yield partial result
+        # will need to extend futures as results come in
+        # modify as_completed to allow mutation during iteration
+        # or use concurrent.futures.wait
+        # perhaps multiprocessing queue is a better abstraction
+
+# Plan for non-random cfg selection (e.g. grid_search, bayesopt)
+        # config spec will have to be generalized with SearchVariations
+        # that not only can sample but have densities?
+        # for grid search we just need to change the dictionary traversing order
+        # sampleConfig should be replaced by a generator?
+        # sample_config could be random (aka prior), but may have state dependent
+        # on (partial) outcome
 
 def train_trial(make_trainer,strict=False):
     """ a common trainer trial use case: make_trainer, train, return cfg and emas"""
