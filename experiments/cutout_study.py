@@ -10,7 +10,7 @@ from oil.model_trainers.classifier import Classifier
 from oil.datasetup.dataloaders import getLabLoader
 from oil.datasetup.augLayers import RandomErasing
 from oil.architectures.img_classifiers.networkparts import layer13
-from oil.tuning.study import Study, train_trial
+from oil.tuning.study import Study, train_trial,trainTrial
 from oil.tuning.configGenerator import uniform,logUniform,sample_config
 #import oil.augLayers as augLayers
 
@@ -47,6 +47,6 @@ def makeTrainer(cfg):
     lr_sched = cosLr(cfg['num_epochs'])
     return Classifier(fullCNN,dataloaders,opt_constr,lr_sched,**cfg['trainer_config'],log_args={'no_print':True})
 
-do_trial = train_trial(makeTrainer)
+do_trial = trainTrial(makeTrainer)
 cutout_study = Study(do_trial,config_spec, slurm_cfg={'time':'2:00:00'})
 cutout_study.run(num_trials=2,max_workers=5)
