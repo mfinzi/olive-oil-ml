@@ -7,4 +7,4 @@ try:    #tqdm.autonotebook
         try: tqdm.write(*map(lambda x: str(x),args), **kwargs)
         except: old_print(*args, ** kwargs)
     inspect.builtins.print = new_print
-except ImportError: tqdm = lambda it:it
+except ImportError: tqdm = lambda it,*args,**kwargs:it
