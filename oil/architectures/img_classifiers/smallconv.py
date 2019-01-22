@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 import numpy as np
 from torch.nn.utils import weight_norm
-from ...utils.utils import Expression,export
+from ...utils.utils import Expression,export,Named
 
 
 def ConvBNrelu(in_channels,out_channels,stride=1):
@@ -15,7 +15,7 @@ def ConvBNrelu(in_channels,out_channels,stride=1):
         nn.ReLU()
     )
 @export
-class smallCNN(nn.Module):
+class smallCNN(nn.Module,metaclass=Named):
     """
     Very small CNN
     """
@@ -41,7 +41,7 @@ class smallCNN(nn.Module):
         return self.net(x)
 
 @export
-class layer13s(nn.Module):
+class layer13s(nn.Module,metaclass=Named):
     """
     Very small CNN
     """

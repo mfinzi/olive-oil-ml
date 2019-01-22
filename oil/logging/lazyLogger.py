@@ -62,12 +62,12 @@ class MaybeTbWriterWSerial(MaybeTbWriter):
         self.__init__(log_dir = state['_log_dir'])
         self.__dict__.update(state)
 
-def tb_default_logdir():
+def tb_default_logdir(comment=''):
     import socket
     from datetime import datetime
     current_time = datetime.now().strftime('%b%d_%H-%M-%S')
-    log_dir = os.path.join(
-        'runs', current_time + '_' + socket.gethostname()+'/')
+    extra = current_time + '_' + socket.gethostname()
+    log_dir = os.path.join('runs', comment or extra)
     return log_dir
 
 class LazyLogger(LogTimer, MaybeTbWriterWSerial):
@@ -78,7 +78,7 @@ class LazyLogger(LogTimer, MaybeTbWriterWSerial):
         expensive logging operations to a fixed fraction. See LogTimer for
         more details.
     """ 
-    def __init__(self, log_dir = None, no_print=False, ema_com=0, **kwargs):
+    def __init__(self, log_dir = None,comment='', no_print=False, ema_com=0, **kwargs):
         """ log_dir: Where tensorboardX logs are saved, tb default
             no_print: if True printing is disabled
             ema_com: if nonzero, emas and report show the exponential moving
@@ -90,8 +90,8 @@ class LazyLogger(LogTimer, MaybeTbWriterWSerial):
         self.no_print = no_print
         self._com = ema_com
         self._unreported = {}
-        self._log_dir = log_dir or tb_default_logdir()
-        super().__init__(log_dir=log_dir, **kwargs)
+        self._log_dir = tb_default_logdir(comment) if not log_dir else os.path.join(log_dir,comment)
+        super().__init__(log_dir=self._log_dir, **kwargs)
 
     def report(self):
         """ prints all unreported text and constants, prints scalar emas"""
@@ -141,7 +141,7 @@ class LazyLogger(LogTimer, MaybeTbWriterWSerial):
             super().add_scalars(tag, dic, step)#, walltime=walltime) #TODO: update tensorboardX?
 
     def save_object(self,obj,suffix):
-        final_path = self.log_dir+suffix
+        final_path = os.path.join(self.log_dir,suffix)
         os.makedirs(os.path.dirname(final_path),exist_ok=True)
         torch.save(obj,final_path,pickle_module=dill)
         return os.path.abspath(final_path)
