@@ -11,7 +11,7 @@ class Trainer(object):
         """
     def __init__(self, model, dataloaders, 
                 opt_constr=optim.Adam, lr_sched = lambda e: 1, 
-                log_dir=None, log_args={}):#,extraInit=lambda:None):
+                log_dir=None, log_suffix='',log_args={}):#,extraInit=lambda:None):
 
         # Setup model, optimizer, and dataloaders
         self.model = model
@@ -21,7 +21,7 @@ class Trainer(object):
         self.dataloaders = dataloaders # A dictionary of dataloaders
         self.epoch = 0
 
-        self.logger = LazyLogger(log_dir, **log_args)
+        self.logger = LazyLogger(log_dir, log_suffix, **log_args)
         #self.logger.add_text('ModelSpec','model: {}'.format(model))
         self.hypers = {}
 

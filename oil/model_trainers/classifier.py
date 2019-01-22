@@ -66,6 +66,16 @@ from ..tuning.study import train_trial
 from ..datasetup.dataloaders import getLabLoader
 from ..datasetup.datasets import CIFAR10
 from ..architectures.img_classifiers import layer13s
+import collections
+
+def recursively_update(d, u):
+    for k, v in u.items():
+        if isinstance(v, dict):
+            d[k] = recursively_update(d.get(k, {}), v)
+        else:
+            d[k] = v
+    return d
+
 
 def simpleClassifierTrial(strict=False):
     def makeTrainer(config):
@@ -75,7 +85,7 @@ def simpleClassifierTrial(strict=False):
             'opt_config':{'lr':.1, 'momentum':.9, 'weight_decay':1e-4},
             'num_epochs':100,'trainer_config':{},
             }
-        cfg.update(config)
+        recursively_update(cfg,config)
         trainset = cfg['dataset']('~/datasets/{}/'.format(cfg['dataset']))
         device = torch.device('cuda')
         fullCNN = torch.nn.Sequential(

@@ -68,7 +68,8 @@ class Study(object):
                 with pd.option_context('display.expand_frame_repr',False):
                     print(self.configs.iloc[-1:])
                     print(self.outcomes.iloc[-1:])
-                self.logger.save_object(self,'study.s')
+                save_loc = self.logger.save_object(self,'study.s')
+        return save_loc
                 # TODO log current best? start with add_text current best 
                 # & add_scalars of current best outcome
 
@@ -99,12 +100,12 @@ def train_trial(make_trainer,strict=False):
     def _perform_trial(cfg,i=None):
         try:
             if i is not None:
-                cfg['trainer_config']['log_dir'] += 'trial{}/'.format(i)
+                cfg['trainer_config']['log_suffix'] = 'trial{}/'.format(i)
             trainer = make_trainer(cfg)
             trainer.logger.add_scalars('config',flatten_dict(cfg))
             outcome = trainer.train(cfg['num_epochs'])
             cfg['saved_at'] = trainer.logger.save_object(trainer,
-                                suffix='checkpoints/c{}.trainer'.format(self.epoch+1))
+                                suffix='checkpoints/c{}.trainer'.format(trainer.epoch+1))
             return cfg, outcome
         except Exception as e:
             if strict: raise
