@@ -25,8 +25,8 @@ class cGan(Gan):
 
 class Pix2Pix(cGan):
     def __init__(self,*args,l1=10,**kwargs):
-        def initClosure(): self.hypers['l1'] = l1
-        super().__init__(*args,extraInit=initClosure,**kwargs)
+        super().__init__(*args,**kwargs)
+        self.hypers['l1'] = l1
 
     def genLoss(self,data):
         y,x = data # Here y is the output image and x is input

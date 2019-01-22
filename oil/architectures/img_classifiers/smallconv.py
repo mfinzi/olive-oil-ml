@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 import numpy as np
 from torch.nn.utils import weight_norm
-from ...utils.utils import Expression
+from ...utils.utils import Expression,export
 
 
 def ConvBNrelu(in_channels,out_channels,stride=1):
@@ -14,14 +14,14 @@ def ConvBNrelu(in_channels,out_channels,stride=1):
         nn.BatchNorm2d(out_channels),
         nn.ReLU()
     )
-
+@export
 class smallCNN(nn.Module):
     """
     Very small CNN
     """
-    def __init__(self, numClasses=10,k=16):
+    def __init__(self, num_classes=10,k=16):
         super().__init__()
-        self.numClasses = numClasses
+        self.num_classes = num_classes
         self.net = nn.Sequential(
             ConvBNrelu(3,k),
             ConvBNrelu(k,k),
@@ -29,11 +29,41 @@ class smallCNN(nn.Module):
             nn.MaxPool2d(2),
             ConvBNrelu(2*k,2*k),
             ConvBNrelu(2*k,2*k),
+            ConvBNrelu(2*k,2*k),
             nn.MaxPool2d(2),
             ConvBNrelu(2*k,2*k),
             ConvBNrelu(2*k,2*k),
+            ConvBNrelu(2*k,2*k),
             Expression(lambda u:u.mean(-1).mean(-1)),
-            nn.Linear(2*k,numClasses)
+            nn.Linear(2*k,num_classes)
+        )
+    def forward(self,x):
+        return self.net(x)
+
+@export
+class layer13s(nn.Module):
+    """
+    Very small CNN
+    """
+    def __init__(self, num_classes=10,k=128,drop_rate=0.3):
+        super().__init__()
+        self.num_classes = num_classes
+        self.net = nn.Sequential(
+            ConvBNrelu(3,k),
+            ConvBNrelu(k,k),
+            ConvBNrelu(k,k),
+            nn.MaxPool2d(2),
+            nn.Dropout(drop_rate),
+            ConvBNrelu(  k,2*k),
+            ConvBNrelu(2*k,2*k),
+            ConvBNrelu(2*k,2*k),
+            nn.MaxPool2d(2),
+            nn.Dropout(drop_rate),
+            ConvBNrelu(2*k,2*k),
+            ConvBNrelu(2*k,2*k),
+            ConvBNrelu(2*k,2*k),
+            Expression(lambda u:u.mean(-1).mean(-1)),
+            nn.Linear(2*k,num_classes)
         )
     def forward(self,x):
         return self.net(x)

@@ -61,8 +61,10 @@ class Study(object):
             for j, future in enumerate(tqdm(concurrent.futures.as_completed(futures),
                                             total=len(futures),desc=self.name)):
                 cfg, outcome = future.result()
-                self.configs.loc['config {}'.format(j)] = pd.Series(flatten_dict(cfg))
-                self.outcomes.loc['outcome {}'.format(j)] = pd.Series(outcome.iloc[-1])
+                cfg_row = pd.DataFrame(flatten_dict(cfg),index=['config {}'.format(j)])
+                outcome_row = outcome.iloc[-1].to_frame('outcome {}'.format(j)).T
+                self.configs = self.configs.append(cfg_row)
+                self.outcomes = self.outcomes.append(outcome_row)
                 with pd.option_context('display.expand_frame_repr',False):
                     print(self.configs.iloc[-1:])
                     print(self.outcomes.iloc[-1:])
@@ -87,42 +89,24 @@ class Study(object):
         # config spec will have to be generalized with SearchVariations
         # that not only can sample but have densities?
         # for grid search we just need to change the dictionary traversing order
-        # sampleConfig should be replaced by a generator?
+        # sampleConfig should be replaced by a generator
+        # the generator state will be updated as output information comes in
         # sample_config could be random (aka prior), but may have state dependent
         # on (partial) outcome
 
 def train_trial(make_trainer,strict=False):
     """ a common trainer trial use case: make_trainer, train, return cfg and emas"""
-    def _perform_trial(cfg,i):
+    def _perform_trial(cfg,i=None):
         try:
-            cfg['trainer_config']['log_dir'] += 'trial{}/'.format(i)
+            if i is not None:
+                cfg['trainer_config']['log_dir'] += 'trial{}/'.format(i)
             trainer = make_trainer(cfg)
             trainer.logger.add_scalars('config',flatten_dict(cfg))
             outcome = trainer.train(cfg['num_epochs'])
-            save_path = trainer.default_save_path(suffix='.trainer')
-            torch.save(trainer,save_path,pickle_module=dill)
-            cfg['saved_at']=save_path
+            cfg['saved_at'] = trainer.logger.save_object(trainer,
+                                suffix='checkpoints/c{}.trainer'.format(self.epoch+1))
             return cfg, outcome
         except Exception as e:
             if strict: raise
             else: return cfg, e
     return _perform_trial
-
-class trainTrial:
-    """ a common trainer trial use case: make_trainer, train, return cfg and emas"""
-    def __init__(self, make_trainer,strict=False):
-        self.make_trainer = make_trainer
-        self.strict = strict
-    def __call__(self,cfg,i):
-        try:
-            cfg['trainer_config']['log_dir'] += 'trial{}/'.format(i)
-            trainer = self.make_trainer(cfg)
-            trainer.logger.add_scalars('config',flatten_dict(cfg))
-            outcome = trainer.train(cfg['num_epochs'])
-            save_path = trainer.default_save_path(suffix='.trainer')
-            torch.save(trainer,save_path,pickle_module=dill)
-            cfg['saved_at']=save_path
-            return cfg, outcome
-        except Exception as e:
-            if self.strict: raise
-            else: return cfg, e

@@ -11,7 +11,7 @@ class Trainer(object):
         """
     def __init__(self, model, dataloaders, 
                 opt_constr=optim.Adam, lr_sched = lambda e: 1, 
-                log_dir=None, log_args={},extraInit=lambda:None):
+                log_dir=None, log_args={}):#,extraInit=lambda:None):
 
         # Setup model, optimizer, and dataloaders
         self.model = model
@@ -24,10 +24,6 @@ class Trainer(object):
         self.logger = LazyLogger(log_dir, **log_args)
         #self.logger.add_text('ModelSpec','model: {}'.format(model))
         self.hypers = {}
-        # Extra work to do (used for subclass)
-        extraInit()
-        # Log the hyper parameters
-        self.logger.add_scalars('hypers', self.hypers)
 
     def train_to(self, final_epoch=100):
         return self.train(final_epoch-self.epoch)

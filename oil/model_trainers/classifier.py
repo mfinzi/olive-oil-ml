@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from ..utils.utils import Eval
+from ..utils.utils import Eval, cosLr, loader_to
 from .trainer import Trainer
 
 class Classifier(Trainer):
@@ -46,3 +46,47 @@ class Classifier(Trainer):
         except KeyError: pass
         self.logger.add_scalars('metrics', metrics, step)
         super().logStuff(i,minibatch)
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Convenience function for that covers a common use case of training the model using
+#   the cosLr schedule, and logging the outcome and returning the results
+
+from ..tuning.study import train_trial
+from ..datasetup.dataloaders import getLabLoader
+from ..datasetup.datasets import CIFAR10
+from ..architectures.img_classifiers import layer13s
+
+def simpleClassifierTrial(strict=False):
+    def makeTrainer(config):
+        cfg = {
+            'dataset': CIFAR10,'network':layer13s,'net_config': {},
+            'loader_config': {'amnt_dev':5000,'lab_BS':50},
+            'opt_config':{'lr':.1, 'momentum':.9, 'weight_decay':1e-4},
+            'num_epochs':100,'trainer_config':{},
+            }
+        cfg.update(config)
+        trainset = cfg['dataset']('~/datasets/{}/'.format(cfg['dataset']))
+        device = torch.device('cuda')
+        fullCNN = torch.nn.Sequential(
+            trainset.default_aug_layers(),
+            cfg['network'](num_classes=trainset.num_classes,**cfg['net_config']).to(device)
+        )
+        dataloaders = {}
+        dataloaders['train'], dataloaders['dev'] = getLabLoader(trainset,**cfg['loader_config'])
+        dataloaders = {k: loader_to(device)(v) for k,v in dataloaders.items()}
+        opt_constr = lambda params: torch.optim.SGD(params, **cfg['opt_config'])
+        lr_sched = cosLr(cfg['num_epochs'])
+        return Classifier(fullCNN,dataloaders,opt_constr,lr_sched,**cfg['trainer_config'])
+    return train_trial(makeTrainer,strict)
+    
