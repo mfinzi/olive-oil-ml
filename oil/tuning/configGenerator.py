@@ -38,7 +38,7 @@ def sample_config(config_spec):
     """ Generates configs from the config spec.
         It will apply lambdas that depend on the config and sample from any
         iterables, make sure that no elements in the generated config are meant to 
-        be iterable or lambdas, strings are allowed. Final config is read only."""
+        be iterable or lambdas, strings are allowed."""
     cfg_all = NoGetItLambdaDict(config_spec)
     more_work=True
     i=0
@@ -65,6 +65,36 @@ def _sample_config(config_spec,cfg_all):
                 more_work = True
         else: cfg[k] = v
     return cfg, more_work
+
+# def grid_search(config_spec):
+#     """ Generates configs from the a grid search on the config spec.
+#     """
+#     cfg_all = NoGetItLambdaDict(config_spec)
+#     more_work=True
+#     i=0
+#     while more_work:
+#         cfg_all, more_work = _sample_config(cfg_all,cfg_all)
+#         i+=1
+#         if i>10: raise RecursionError("config dependency unresolvable")
+#     return dict(cfg_all)#ReadOnlyDict(cfg_all)
+
+# def _sample_config(config_spec,cfg_all):
+#     cfg = NoGetItLambdaDict()
+#     more_work = False
+#     for k,v in config_spec.items():
+#         if isinstance(v,dict):
+#             new_dict,extra_work = _sample_config(v,cfg_all)
+#             cfg[k] = new_dict
+#             more_work |= extra_work
+#         elif isinstance(v,Iterable) and not isinstance(v,(str,bytes)):
+#             cfg[k] = np.random.choice(v)
+#         elif callable(v) and v.__name__ == "<lambda>":
+#             try:cfg[k] = v(cfg_all)
+#             except (KeyError, LookupError):
+#                 cfg[k] = v # is used isntead of the variable it returns
+#                 more_work = True
+#         else: cfg[k] = v
+#     return cfg, more_work
 
 def flatten_dict(d):
     """ Flattens a dictionary, ignoring outer keys. Only

@@ -6,8 +6,9 @@
 import math
 import torch.nn as nn
 import torchvision.transforms as transforms
+from ...utils.utils import Named
 
-__all__ = ['VGG16', 'VGG16BN', 'VGG19', 'VGG19BN']
+__all__ = ['VGG16', 'VGG16BN']
 
 
 def make_layers(cfg, batch_norm=False):
@@ -33,7 +34,7 @@ cfg = {
 }
 
 
-class VGG(nn.Module):
+class VGG(nn.Module,metaclass=Named):
     def __init__(self, num_classes=10, depth=16, batch_norm=False):
         super(VGG, self).__init__()
         self.features = make_layers(cfg[depth], batch_norm)
@@ -59,35 +60,9 @@ class VGG(nn.Module):
         x = self.classifier(x)
         return x
 
-
-class Base:
-    base = VGG
-    args = list()
-    kwargs = dict()
-    transform_train = transforms.Compose([
-        transforms.RandomHorizontalFlip(),
-        transforms.RandomCrop(32, padding=4),
-        transforms.ToTensor(),
-        transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-    ])
-
-    transform_test = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
-    ])
-
-
-class VGG16(Base):
-    pass
-
-
-class VGG16BN(Base):
-    kwargs = {'batch_norm': True}
-
-
-class VGG19(Base):
-    kwargs = {'depth': 19}
-
-
-class VGG19BN(Base):
-    kwargs = {'depth': 19, 'batch_norm': True}
+class VGG16(VGG):
+    def __init__(self,num_classes=10):
+        super().__init__(num_classes=num_classes,depth=16,batch_norm=False)
+class VGG16BN(VGG):
+    def __init__(self,num_classes=10):
+        super().__init__(num_classes=num_classes,depth=16,batch_norm=True)

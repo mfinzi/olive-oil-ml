@@ -8,6 +8,19 @@ import copy
 import os
 import dill
 import itertools
+import sys
+
+class Named(type):
+    def __str__(self):
+        return self.__name__
+
+def export(fn):
+    mod = sys.modules[fn.__module__]
+    if hasattr(mod, '__all__'):
+        mod.__all__.append(fn.__name__)
+    else:
+        mod.__all__ = [fn.__name__]
+    return fn
 
 def log_uniform(low,high,size=None):
     logX = np.random.uniform(np.log(low),np.log(high),size)

@@ -5,11 +5,8 @@ import torchvision.datasets as ds
 import torch.nn as nn
 import numpy as np
 from . import augLayers
+from ..utils.utils import Named
 
-
-class Named(type):
-    def __str__(self):
-        return self.__name__
 
 class EasyIMGDataset(object,metaclass=Named):
     def __init__(self,*args,gan_normalize=False,download=True,**kwargs):

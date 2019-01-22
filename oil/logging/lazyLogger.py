@@ -45,8 +45,8 @@ class NothingWriter(object):
     = add_image_with_boxes = add_figure = add_video = add_audio \
     = add_text = add_onnx_graph = add_graph = add_embedding \
     = add_pr_curve_raw = close = lambda *args,**kwargs:None
-    def __init__(self, log_dir=None,comment='',**kwargs):
-        return super().__init__(**kwargs)
+    def __init__(self,*args,**kwargs):
+        return super().__init__(*args,**kwargs)
 try: 
     import tensorboardX
     MaybeTbWriter = tensorboardX.SummaryWriter
@@ -62,6 +62,13 @@ class MaybeTbWriterWSerial(MaybeTbWriter):
         self.__init__(log_dir = state['_log_dir'])
         self.__dict__.update(state)
 
+def tb_default_logdir():
+    import socket
+    from datetime import datetime
+    current_time = datetime.now().strftime('%b%d_%H-%M-%S')
+    log_dir = os.path.join(
+        'runs', current_time + '_' + socket.gethostname()+'/')
+    return log_dir
 
 class LazyLogger(LogTimer, MaybeTbWriterWSerial):
     """ Tensorboard logging to log_dir, logged scalars are also stored to 
@@ -82,8 +89,8 @@ class LazyLogger(LogTimer, MaybeTbWriterWSerial):
         self.scalar_frame = pd.DataFrame()
         self.no_print = no_print
         self._com = ema_com
-        self._log_dir = log_dir
         self._unreported = {}
+        self._log_dir = log_dir or tb_default_logdir()
         super().__init__(log_dir=log_dir, **kwargs)
 
     def report(self):
@@ -97,7 +104,7 @@ class LazyLogger(LogTimer, MaybeTbWriterWSerial):
         return emas
 
     @property # Needs to be read only
-    def log_dir(self):
+    def log_dir(self): # Whatever was assigned by the tbwriter
         return self._log_dir
 
     def emas(self):
@@ -129,7 +136,8 @@ class LazyLogger(LogTimer, MaybeTbWriterWSerial):
             self._add_constants(tag,dic)
         else:
             i = step if step is not None else walltime
-            self.scalar_frame.loc[i] = pd.Series(dic)
+            newRow = pd.DataFrame(dic, index = [i])
+            self.scalar_frame = self.scalar_frame.combine_first(newRow)
             super().add_scalars(tag, dic, step)#, walltime=walltime) #TODO: update tensorboardX?
 
     def save_object(self,obj,suffix):

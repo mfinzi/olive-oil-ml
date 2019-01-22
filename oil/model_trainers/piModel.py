@@ -10,10 +10,9 @@ from ..utils.utils import Eval, izip, icycle
 class PiModel(Classifier):
     def __init__(self, *args, cons_weight=200.,
                      **kwargs):
-        def initClosure():
-            self.hypers.update({'cons_weight':cons_weight})
-            self.dataloaders['train'] = izip(icycle(self.dataloaders['lab']),self.dataloaders['unlab'])
-        super().__init__(*args, extraInit = initClosure, **kwargs)
+        super().__init__(*args, **kwargs)
+        self.hypers.update({'cons_weight':cons_weight})
+        self.dataloaders['train'] = izip(icycle(self.dataloaders['lab']),self.dataloaders['unlab'])
 
     def unlabLoss(self, x_unlab):
         logits1 = self.model(x_unlab)

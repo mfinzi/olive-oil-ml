@@ -6,8 +6,9 @@
 import torch.nn as nn
 import torchvision.transforms as transforms
 import math
+from ...utils.utils import Named
 
-__all__ = ['PreResNet110', 'PreResNet56']
+__all__ = ['PreResNet110', 'PreResNet56','PreResNet']
 
 
 def conv3x3(in_planes, out_planes, stride=1):
@@ -86,7 +87,7 @@ class Bottleneck(nn.Module):
         return out
 
 
-class PreResNet(nn.Module):
+class PreResNet(nn.Module,metaclass=Named):
 
     def __init__(self, num_classes=10, depth=110):
         super(PreResNet, self).__init__()
@@ -146,32 +147,10 @@ class PreResNet(nn.Module):
         return x
 
 
-class PreResNet110:
-    base = PreResNet
-    args = list()
-    kwargs = {'depth': 110}
-    transform_train = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-    ])
-    transform_test = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-    ])
+class PreResNet56(PreResNet):
+    def __init__(self,num_classes=10):
+        super().__init__(num_classes=num_classes,depth=56)
 
-class PreResNet56:
-    base = PreResNet
-    args = list()
-    kwargs = {'depth': 56}
-    transform_train = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-    ])
-    transform_test = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-    ])
+class PreResNet110(PreResNet):
+    def __init__(self,num_classes=10):
+        super().__init__(num_classes=num_classes,depth=110)

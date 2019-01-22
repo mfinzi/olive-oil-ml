@@ -22,9 +22,8 @@ class Gan(Trainer):
     
     def __init__(self, *args,D=None,opt_constr=None,lr_sched=lambda e:1,
                         n_disc = 2, **kwargs):
-        def initClosure():
-            self.hypers.update({'n_disc':n_disc})
-        super().__init__(*args, extraInit = initClosure, **kwargs)
+        super().__init__(*args, **kwargs)
+        self.hypers.update({'n_disc':n_disc})
 
         self.G = self.model
         self.D = D

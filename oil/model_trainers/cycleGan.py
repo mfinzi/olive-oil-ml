@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 from ..utils.utils import Eval, join_opts, stateful_zip
-from .gan import Gan, hinge_loss_D, hinge_loss_G
+from .gan import Gan, hinge_loss_D, hinge_loss_G, cGan
 from torch.nn.functional import l1_loss as L1
 
 class CycleGan(Gan):
