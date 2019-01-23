@@ -16,7 +16,7 @@ class RandomErasing(nn.Module):
     probability: The probability that the operation will be performed.
     ave_area_frac: average fraction of img area that is erased
     '''
-    def __init__(self, p = 0.5, af=.2, ar=3,max_scale=3):
+    def __init__(self, p = 1, af=1/4, ar=3,max_scale=3):
         self.p = p
         self.area_frac = af
         self.max_ratio = ar
