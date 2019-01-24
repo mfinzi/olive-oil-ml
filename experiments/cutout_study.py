@@ -18,10 +18,10 @@ config_spec = {
     'dataset': [CIFAR10,CIFAR100],
     'network': WideResNet28x10,'net_config': {},
     'loader_config': {'amnt_dev':5000,'lab_BS':64},
-    'opt_config':{'lr':.1, 'momentum':.9, 'weight_decay':1e-4},
+    'opt_config':{'lr':.2, 'momentum':.9, 'weight_decay':1e-4},
     'num_epochs':200,
     'cutout_config':{'p':uniform(.3,1),'af':logUniform(.1,.5),'ar':logUniform(1,3)},
-    'trainer_config':{}
+    'trainer_config':{'log_args':{'no_print':True}}
 }
 log_dir_base = os.path.expanduser('~/tb-experiments/cutout_wrn')
 config_spec['trainer_config']['log_dir'] = lambda cfg:log_dir_base+\
@@ -45,4 +45,4 @@ def makeTrainer(cfg):
 
 do_trial = train_trial(makeTrainer)
 cutout_study = Study(do_trial,config_spec, slurm_cfg={'time':'24:00:00'})
-cutout_study.run(num_trials=50,max_workers=10)
+cutout_study.run(num_trials=30,max_workers=10)
