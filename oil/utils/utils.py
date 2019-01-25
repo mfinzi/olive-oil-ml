@@ -49,14 +49,24 @@ class map_with_len(object):
 
 class imap(map_with_len): pass
 
-def loader_to(device):
-    """Returns a function that sends dataloader output
-         to the specified device"""
+
+
+
+def to_device_layer(device):
     def minibatch_map(mb):
         try: return mb.to(device)
         except AttributeError: 
             return type(mb)(map(lambda x:x.to(device),mb))
-    return lambda loader: map_with_len(minibatch_map, loader)
+    return Expression(minibatch_map)
+
+# def loader_to(device):
+#     """Returns a function that sends dataloader output
+#          to the specified device"""
+#     def minibatch_map(mb):
+#         try: return mb.to(device)
+#         except AttributeError: 
+#             return type(mb)(map(lambda x:x.to(device),mb))
+#     return lambda loader: map_with_len(minibatch_map, loader)
 
 # # Wraps a generator so that calling __iter__ multiple
 # #    times produces distinct non-empty generators  
