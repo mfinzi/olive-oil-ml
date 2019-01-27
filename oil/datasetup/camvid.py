@@ -5,7 +5,7 @@ import torch
 import torch.utils.data as data
 import numpy as np
 from PIL import Image
-from torchvision.datasets.folder import is_image_file, default_loader
+from torchvision.datasets.folder import default_loader
 import torchvision.transforms as transforms
 from .joint_transforms import JointRandomCrop, JointRandomHorizontalFlip
 
@@ -13,10 +13,10 @@ def make_dataset(dir):
     images = []
     for root, _, fnames in sorted(os.walk(dir)):
         for fname in fnames:
-            if is_image_file(fname):
-                path = os.path.join(root, fname)
-                item = path
-                images.append(item)
+            #if is_image_file(fname):
+            path = os.path.join(root, fname)
+            item = path
+            images.append(item)
     return images
 
 def LabelToLongTensor(pic):

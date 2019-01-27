@@ -16,7 +16,8 @@ class Classifier(Trainer):
         return criterion(model(x),y)
 
     def evalAccuracy(self,loader,model=None):
-        acc = lambda mb: model(mb[0]).max(1)[1].type_as(mb[1]).eq(mb[1]).float().mean()
+        if model is None: model = self.model
+        acc = lambda mb: model(mb[0]).max(1)[1].type_as(mb[1]).eq(mb[1]).cpu().data.numpy().mean()
         return self.evalAverageLoss(loader,model,acc)
 
     metrics = {**Trainer.metrics,'Acc':evalAccuracy}
@@ -33,7 +34,9 @@ class Regressor(Trainer):
 
     def evalMSE(self, loader, model = None):
         """ Gets the full dataset MSE evaluated on the data in loader """
-        return self.evalAverageLoss(loader,model,nn.MSELoss())
+        # class_weights = self.dataloaders['train'].dataset.class_weights
+        # mse = lambda mb: nn.MSELoss(class_weights)(model(mb[0]),mb[1]).cpu().data.numpy()
+        return self.evalAverageLoss(loader,model)
 
     metrics = {**Trainer.metrics,'MSE':evalMSE}
 

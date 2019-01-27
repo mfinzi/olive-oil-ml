@@ -9,6 +9,7 @@ import os
 import dill
 import itertools
 import sys
+import torch.utils.data
 
 class Named(type):
     def __str__(self):
@@ -49,8 +50,17 @@ class map_with_len(object):
 
 class imap(map_with_len): pass
 
+class LoaderTo(torch.utils.data.DataLoader):
+    def __init__(self,loader, device):
+        self.__dict__ = loader.__dict__
+        self._device = device
 
-
+    def __iter__(self):
+        def minibatch_map(mb):
+            try: return mb.to(self._device)
+            except AttributeError: 
+                return type(mb)(map(lambda x:x.to(self._device),mb))
+        return map(minibatch_map,super().__iter__())
 
 def to_device_layer(device):
     def minibatch_map(mb):

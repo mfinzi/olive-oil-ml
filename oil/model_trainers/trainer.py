@@ -5,6 +5,7 @@ from ..utils.utils import Eval
 from ..utils.mytqdm import tqdm
 import copy, os, random
 import glob
+import numpy as np
 
 class Trainer(object):
     """ Base trainer
@@ -70,17 +71,16 @@ class Trainer(object):
         self.logger.add_scalars('schedules', schedules, step)
         self.logger.report()
     
-    def evalAverageLoss(self, loader, model=None, loss=None):
-        if model is None: model = self.model
-        if loss is None: loss = self.loss
-        loss_total, num_total = 0, 0
+    def evalAverageMetrics(self, loader,metrics):
+        #if losses is None: losses = lambda mb: self.loss(mb).cpu().data.numpy()
+        num_total, loss_totals = 0, 0
         with Eval(self.model), torch.no_grad():
             for minibatch in loader:
-                mb_size = minibatch[1].size(0)
-                loss_total += mb_size*loss(minibatch).cpu().data.numpy()
+                mb_size = minibatch[0].size(0)
+                loss_totals += mb_size*metrics(minibatch)
                 num_total += mb_size
         if num_total==0: raise KeyError("dataloader is empty")
-        return loss_total/num_total
+        return loss_totals/num_total
 
     # def state_dict(self):
     #     state = {
