@@ -105,7 +105,7 @@ def train_trial(make_trainer,strict=False):
             trainer.logger.add_scalars('config',flatten_dict(cfg))
             outcome = trainer.train(cfg['num_epochs'])
             cfg['saved_at'] = trainer.logger.save_object(trainer,
-                                suffix='checkpoints/c{}.trainer'.format(trainer.epoch+1))
+                                suffix='checkpoints/c{}.trainer'.format(trainer.epoch))
             return cfg, outcome
         except Exception as e:
             if strict: raise

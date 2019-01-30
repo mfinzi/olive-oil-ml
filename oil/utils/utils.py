@@ -141,17 +141,24 @@ class Expression(nn.Module):
     def forward(self, x):
         return self.func(x)
 
-def cosLr(cycle_length, cycle_mult=1):
-    def lrSched(epoch):
+def cosLr(cycle_length=1,cycle_mult=1):
+    def lrSched(train_frac):
         r = cycle_mult + 1e-8
-        L = cycle_length #base
-        current_cycle = np.floor(np.log(1+(r-1)*epoch/L)/np.log(r))
+        L = 1#cycle_length #base
+        current_cycle = np.floor(np.log(1+(r-1)*train_frac/L)/np.log(r))
         current_cycle_length = L*r**current_cycle
-        cycle_iter = epoch - L*(r**current_cycle - 1)/(r-1)
+        cycle_iter = train_frac - L*(r**current_cycle - 1)/(r-1)
         cos_scale = .5*(1 + np.cos(np.pi*cycle_iter/current_cycle_length))
         return cos_scale
     return lrSched
 
+def recursively_update(d, u):
+    for k, v in u.items():
+        if isinstance(v, dict):
+            d[k] = recursively_update(d.get(k, {}), v)
+        else:
+            d[k] = v
+    return d
 
 def to_lambda(x):
     """ Turns constants into constant functions """

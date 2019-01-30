@@ -15,12 +15,9 @@ class Classifier(Trainer):
         criterion = nn.CrossEntropyLoss(weight=class_weights)
         return criterion(model(x),y)
 
-    def evalAccuracy(self,loader,model=None):
-        if model is None: model = self.model
-        acc = lambda mb: model(mb[0]).max(1)[1].type_as(mb[1]).eq(mb[1]).cpu().data.numpy().mean()
-        return self.evalAverageLoss(loader,model,acc)
-
-    metrics = {**Trainer.metrics,'Acc':evalAccuracy}
+    def metrics(self,loader):
+        acc = lambda mb: self.model(mb[0]).max(1)[1].type_as(mb[1]).eq(mb[1]).cpu().data.numpy().mean()
+        return {'Acc':self.evalAverageMetrics(loader,acc)}
 
 class Regressor(Trainer):
     """ Trainer subclass. Implements loss (crossentropy), batchAccuracy
@@ -32,6 +29,9 @@ class Regressor(Trainer):
         if model is None: model = self.model
         return nn.MSELoss()(model(x),y)
 
+    def metrics(self,loader):
+        mse = lambda mb: nn.MSELoss()(self.model(mb[0]),mb[1]).cpu().data.numpy()
+        return 
     def evalMSE(self, loader, model = None):
         """ Gets the full dataset MSE evaluated on the data in loader """
         # class_weights = self.dataloaders['train'].dataset.class_weights

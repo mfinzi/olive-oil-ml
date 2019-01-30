@@ -10,7 +10,6 @@ import numpy as np
 class Trainer(object):
     """ Base trainer
         """
-    metrics = {}
     def __init__(self, model, dataloaders, 
                 opt_constr=optim.Adam, lr_sched = lambda e: 1, 
                 log_dir=None, log_suffix='',log_args={}):#,extraInit=lambda:None):
@@ -33,13 +32,15 @@ class Trainer(object):
     def train(self, num_epochs=100):
         """ The main training loop"""
         start_epoch = self.epoch
-        for self.epoch in tqdm(range(start_epoch, start_epoch + num_epochs),desc='train'):
-            [sched.step(self.epoch) for sched in self.lr_schedulers]
+        total_steps = (start_epoch + num_epochs)*len(self.dataloaders['train'])
+        for self.epoch in tqdm(range(start_epoch+1, start_epoch + num_epochs+1),desc='train'):
             for i, minibatch in enumerate(self.dataloaders['train']):
+                step = i + (self.epoch-1)*len(self.dataloaders['train'])
+                [sched.step(step/total_steps) for sched in self.lr_schedulers]
                 with self.logger as do_log:
-                    if do_log: self.logStuff(i, minibatch)
+                    if do_log: self.logStuff(step, minibatch)
                 self.step(minibatch)
-        self.logStuff(i)
+        self.logStuff(step)
         return self.logger.emas()
 
     def step(self, minibatch):
@@ -53,18 +54,18 @@ class Trainer(object):
         """ Takes in a minibatch of data and outputs the loss"""
         raise NotImplementedError
     
-    def logStuff(self, i, minibatch=None):
-        step = i+1 + (self.epoch+1)*len(self.dataloaders['train'])
+    def metrics(self,loader):
+        return {}
+
+    def logStuff(self, step, minibatch=None):
         metrics = {}
         try: metrics['Minibatch_Loss'] = self.loss(minibatch).cpu().data.numpy()
         except (NotImplementedError, TypeError): pass
-        for loader_name, loader in self.dataloaders.items():
-            if loader_name=='train': continue # Ignore metric on train
-            for metric_name, metric in self.metrics.items():
-                # todo: fuse metrics?
-                metrics[loader_name+'_'+metric_name] = metric(self,loader)
+        for loader_name,dloader in self.dataloaders.items():
+            if loader_name=='train': continue # Ignore metrics on train
+            for metric_name, metric_value in self.metrics(dloader).items():
+                metrics[loader_name+'_'+metric_name] = metric_value
         self.logger.add_scalars('metrics', metrics, step)
-
         schedules = {}
         for i, sched in enumerate(self.lr_schedulers):
             schedules['lr{}'.format(i)] = sched.get_lr()[0]
