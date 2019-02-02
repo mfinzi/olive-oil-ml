@@ -19,7 +19,7 @@ def conv2d(in_channels,out_channels,kernel_size=3,coords=False,**kwargs):
         return nn.Conv2d(in_channels,out_channels,kernel_size,padding=same,**kwargs)
 
 class ResBlock(nn.Module):
-    def __init__(self,in_channels,out_channels,ksize=3,stride=1,coords=False):
+    def __init__(self,in_channels,out_channels,ksize=3,stride=1,drop_rate=0,coords=False):
         super().__init__()
         self.net = nn.Sequential(
             nn.BatchNorm2d(out_channels),
@@ -28,6 +28,7 @@ class ResBlock(nn.Module):
             nn.BatchNorm2d(out_channels),
             nn.ReLU(),
             conv2d(in_channels,out_channels,ksize,stride=stride,coords=coords),
+            nn.Dropout(p=drop_rate)
         )
         if in_channels != out_channels:
             self.shortcut = conv2d(in_channels,out_channels,1,stride=stride,coords=coords)
@@ -52,3 +53,28 @@ def FcBNrelu(in_channels,out_channels):
         nn.BatchNorm1d(out_channels),
         nn.ReLU()
     )
+
+
+class DenseLayer(nn.Module):
+    def __init__(self, inplanes, k=12, drop_rate=0,coords=True):
+        super().__init__()
+        self.net = nn.Sequential(
+            ConvBNrelu(inplanes,4*k,kernel_size=1,coords=coords),
+            ConvBNrelu(4*k,k,kernel_size=3,coords=coords),
+            nn.Dropout(p=drop_rate),
+        )
+    def forward(self, x):
+        return torch.cat((x, self.net(x)), 1)
+
+class DenseBlock(nn.Module):
+    def __init__(self, inplanes,k=16,N=20,drop_rate=0,coords=True):
+        super().__init__()
+        layers = []
+        for i in range(N):
+            layers.append(DenseLayer(inplanes,k,drop_rate,coords))
+            inplanes += k
+        layers.append(ConvBNrelu(inplanes,inplanes//2))
+        self.net = nn.Sequential(*layers)
+
+    def forward(self,x):
+        return self.net(x)

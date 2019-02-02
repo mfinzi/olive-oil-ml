@@ -72,10 +72,10 @@ class Study(object):
         return save_loc
                 # TODO log current best? start with add_text current best 
                 # & add_scalars of current best outcome
-
-    # Planned: convenience functions for analyzing study data
-                # filter out config hypers that are shared
-
+    def covariates(self):
+        """ Returns the subset of columns from configs that is not all the same"""
+        columns_that_vary = self.configs.apply(pd.Series.nunique,axis=0)!=1
+        return self.configs.T[columns_that_vary].T
 
 # Plan for pruning support (e.g. median rule, hyperband)
         # Support for trials that train in segments via generators
@@ -105,7 +105,7 @@ def train_trial(make_trainer,strict=False):
             trainer.logger.add_scalars('config',flatten_dict(cfg))
             outcome = trainer.train(cfg['num_epochs'])
             cfg['saved_at'] = trainer.logger.save_object(trainer,
-                                suffix='checkpoints/c{}.trainer'.format(trainer.epoch+1))
+                                suffix='checkpoints/c{}.trainer'.format(trainer.epoch))
             return cfg, outcome
         except Exception as e:
             if strict: raise

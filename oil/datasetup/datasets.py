@@ -1,19 +1,19 @@
 import torch, torchvision
 import torchvision.transforms as transforms
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 import torchvision.datasets as ds
 import torch.nn as nn
 import numpy as np
 from . import augLayers
 from ..utils.utils import Named
+from . import camvid
 
-
-class EasyIMGDataset(object,metaclass=Named):
+class EasyIMGDataset(Dataset,metaclass=Named):
     def __init__(self,*args,gan_normalize=False,download=True,**kwargs):
         transform = kwargs.pop('transform',None)
         if not transform: transform = self.default_transform(gan_normalize)
         super().__init__(*args,transform=transform,download=download,**kwargs)
-
+    
     def default_transform(self,gan_normalize=False):
         if gan_normalize: 
             normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
@@ -22,10 +22,16 @@ class EasyIMGDataset(object,metaclass=Named):
         transform = transforms.Compose([transforms.ToTensor(),normalize])
         return transform
 
-    def compute_default_transform(self):
-        raise NotImplementedError
+    # def compute_default_transform(self):
+    #     raise NotImplementedError
+
+    def default_aug_layers(self):
+        return nn.Sequential()
+
+    
 
 class CIFAR10(EasyIMGDataset,ds.CIFAR10):
+    class_weights = None
     means = (0.4914, 0.4822, 0.4465)
     stds = (.247,.243,.261)
     num_classes=10
@@ -36,6 +42,7 @@ class CIFAR10(EasyIMGDataset,ds.CIFAR10):
         )
 
 class CIFAR100(EasyIMGDataset,ds.CIFAR100):
+    class_weights = None
     means = (0.5071, 0.4867, 0.4408)
     stds = (0.2675, 0.2565, 0.2761)
     num_classes=100
@@ -47,6 +54,7 @@ class CIFAR100(EasyIMGDataset,ds.CIFAR100):
 
 class SVHN(EasyIMGDataset,ds.SVHN):
     #TODO: Find real mean and std
+    class_weights = None
     means = (0.5, 0.5, 0.5)
     stds = (0.5, 0.5, 0.5)
     num_classes=10
@@ -56,8 +64,26 @@ class SVHN(EasyIMGDataset,ds.SVHN):
         augLayers.RandomHorizontalFlip(),
         )
 
+# class SegmentationDataset(EasyIMGDataset):
+#     def __init__(self,*args,joint_transform=True,split='train',**kwargs):
+#         if joint_transform is True:
+#             joint_transform = self.default_joint_transform() if \
+#                 split=='train' else None
+#         super().__init__(*args,joint_transform=joint_transform,
+#                                 split=split,**kwargs)
 
-
+#     def default_joint_transform(self):
+#         """ Currently translating x and y is more easily
+#             expressed as a joint transformation rather than layer """
+#         raise NotImplementedError
+    
+class CamVid(camvid.CamVid):
+    @classmethod
+    def default_joint_transform(self):
+        return transforms.Compose([
+                JointRandomCrop(224),
+                JointRandomHorizontalFlip()
+                ])
 
 
 
