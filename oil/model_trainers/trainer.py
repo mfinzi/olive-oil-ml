@@ -62,7 +62,7 @@ class Trainer(object):
         try: metrics['Minibatch_Loss'] = self.loss(minibatch).cpu().data.numpy()
         except (NotImplementedError, TypeError): pass
         for loader_name,dloader in self.dataloaders.items():
-            if loader_name=='train': continue # Ignore metrics on train
+            if loader_name=='train' or len(dloader)==0: continue # Ignore metrics on train
             for metric_name, metric_value in self.metrics(dloader).items():
                 metrics[loader_name+'_'+metric_name] = metric_value
         self.logger.add_scalars('metrics', metrics, step)

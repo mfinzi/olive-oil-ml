@@ -1,18 +1,24 @@
 import torch
 import torch.nn as nn
 from ..utils.utils import Eval, cosLr, loader_to
+from ..utils.metrics import confusion_from_logits, meanIoU, freqIoU, pixelAcc,meanAcc
 from .trainer import Trainer
 from .classifier import Classifier, Regressor
 
 class Segmenter(Classifier):
     """ Trainer subclass. Implements loss (crossentropy), batchAccuracy
         and getAccuracy (full dataset) """
-    # IoU, MaP, MP
-    def evalAccuracy(self,loader,model=None):
-        acc = lambda mb: model(mb[0]).max(1)[1].type_as(mb[1]).eq(mb[1]).float().mean()
-        return self.evalAverageLoss(loader,model,acc)
 
-    #metrics = {**Trainer.__metrics__,'Acc':evalAccuracy}
+    def metrics(self,loader):
+        mb_confusion = lambda mb: confusion_from_logits(self.model(mb[0]),mb[1])
+        full_confusion = self.evalAverageMetrics(loader,mb_confusion)
+        metrics = {
+            'pixelAcc':pixelAcc(full_confusion),
+            'meanAcc':meanAcc(full_confusion)
+            'mIoU':meanIoU(full_confusion),
+            'fwIoU':freqIoU(full_confusion)
+        }
+        return metrics
 
 class ImgRegressor(Regressor):
     pass
