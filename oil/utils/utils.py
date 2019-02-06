@@ -62,6 +62,16 @@ class LoaderTo(torch.utils.data.DataLoader):
                 return type(mb)(map(lambda x:x.to(self._device),mb))
         return map(minibatch_map,super().__iter__())
 
+class islice(torch.utils.data.DataLoader):
+    def __init__(self,dataloader,k):
+        """ Wraps a dataloader, but only takes the first k elements with iter,
+            if shuffling is enabled, this may be different from different 
+            calls to iter """
+        self.__dict__= dataloader.__dict__
+        self._k = k
+    def __iter__(self):
+        return iter(itertools.islice(self,self._k))
+
 def to_device_layer(device):
     def minibatch_map(mb):
         try: return mb.to(device)
@@ -88,14 +98,14 @@ class reusable(object):
     # def __len__(self):
     #     return len(self._gen())
 
-class islice(object):
-    def __init__(self,dataloader,k):
-        self.dataloader = dataloader
-        self.k = k
-    def __iter__(self):
-        return iter(itertools.islice(self.dataloader,self.k))
-    def __len__(self):
-        return self.k
+# class islice(object):
+#     def __init__(self,dataloader,k):
+#         self.dataloader = dataloader
+#         self.k = k
+#     def __iter__(self):
+#         return iter(itertools.islice(self.dataloader,self.k))
+#     def __len__(self):
+#         return self.k
 
 class izip(object):
     def __init__(self,*iters):

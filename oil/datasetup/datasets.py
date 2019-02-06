@@ -9,6 +9,8 @@ from ..utils.utils import Named
 from . import camvid
 
 class EasyIMGDataset(Dataset,metaclass=Named):
+    ignored_index = -100
+    class_weights = None
     def __init__(self,*args,gan_normalize=False,download=True,**kwargs):
         transform = kwargs.pop('transform',None)
         if not transform: transform = self.default_transform(gan_normalize)
@@ -31,7 +33,6 @@ class EasyIMGDataset(Dataset,metaclass=Named):
     
 
 class CIFAR10(EasyIMGDataset,ds.CIFAR10):
-    class_weights = None
     means = (0.4914, 0.4822, 0.4465)
     stds = (.247,.243,.261)
     num_classes=10
@@ -42,7 +43,6 @@ class CIFAR10(EasyIMGDataset,ds.CIFAR10):
         )
 
 class CIFAR100(EasyIMGDataset,ds.CIFAR100):
-    class_weights = None
     means = (0.5071, 0.4867, 0.4408)
     stds = (0.2675, 0.2565, 0.2761)
     num_classes=100
@@ -54,7 +54,6 @@ class CIFAR100(EasyIMGDataset,ds.CIFAR100):
 
 class SVHN(EasyIMGDataset,ds.SVHN):
     #TODO: Find real mean and std
-    class_weights = None
     means = (0.5, 0.5, 0.5)
     stds = (0.5, 0.5, 0.5)
     num_classes=10
@@ -77,13 +76,13 @@ class SVHN(EasyIMGDataset,ds.SVHN):
 #             expressed as a joint transformation rather than layer """
 #         raise NotImplementedError
     
-class CamVid(camvid.CamVid):
-    @classmethod
-    def default_joint_transform(self):
-        return transforms.Compose([
-                JointRandomCrop(224),
-                JointRandomHorizontalFlip()
-                ])
+# class CamVid(camvid.CamVid):
+#     @classmethod
+#     def default_joint_transform(self):
+#         return transforms.Compose([
+#                 JointRandomCrop(224),
+#                 JointRandomHorizontalFlip()
+#                 ])
 
 
 

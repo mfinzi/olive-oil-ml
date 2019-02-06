@@ -12,7 +12,8 @@ class Classifier(Trainer):
         x,y = minibatch
         if model is None: model = self.model
         class_weights = self.dataloaders['train'].dataset.class_weights
-        criterion = nn.CrossEntropyLoss(weight=class_weights)
+        ignored_index = self.dataloaders['train'].dataset.ignored_index
+        criterion = nn.CrossEntropyLoss(weight=class_weights,ignore_index=ignored_index)
         return criterion(model(x),y)
 
     def metrics(self,loader):
