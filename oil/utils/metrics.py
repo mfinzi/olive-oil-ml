@@ -11,10 +11,10 @@ from ..utils.utils import Eval, Expression
 #from .pytorch-fid.fid_score import calculate_frechet_distance
 #from .pytorch-fid.inception import InceptionV3
 
+# GAN Metrics
+
 # TODO: cache logits for existing datasets
 #       should be possible if we can serialize dataloaders
-
-
 def get_inception():
     """ grabs the pytorch pretrained inception_v3 with resized inputs """
     inception = inception_v3(pretrained=True,transform_input=False)
@@ -89,6 +89,42 @@ def get_official_FID(loader,dataset='cifar10'):
     return score
 
 
+# Semantic Segmentation Metrics
+# Adapted from https://github.com/jfzhang95/pytorch-deeplab-xception/blob/master/utils/metrics.py
+def confusion_from_logits(logits,y_gt):
+    bs, num_classes, _, _ = logits.shape
+    pred_image = logits.max(1)[1].type_as(y_gt).cpu().data.numpy()
+    print(pred_image)
+    gt_image = y_gt.cpu().data.numpy()
+    return confusion_matrix(pred_image,gt_image,num_classes)
 
+def confusion_matrix(pred_image,gt_image,num_classes):
+    """Computes the confusion matrix from two numpy class images (integer values)
+        ignoring classes that are negative"""
+    mask = (gt_image >= 0) & (gt_image < num_classes)
+    #print(gt_image[mask])
+    label = num_classes * gt_image[mask].astype(int) + pred_image[mask]
+    count = np.bincount(label, minlength=num_classes**2)
+    confusion_matrix = count.reshape(num_classes, num_classes)
+    return confusion_matrix # confusing shape, maybe transpose
 
+def meanIoU(confusion_matrix):
+    MIoU = np.diag(confusion_matrix) / (
+                np.sum(confusion_matrix, axis=1) + np.sum(confusion_matrix, axis=0) -
+                np.diag(confusion_matrix))
+    MIoU = np.nanmean(MIoU)
+    return MIoU
 
+def freqIoU(confusion_matrix):
+    freq = np.sum(confusion_matrix, axis=1) / np.sum(confusion_matrix)
+    iu = np.diag(confusion_matrix) / (
+                np.sum(confusion_matrix, axis=1) + np.sum(confusion_matrix, axis=0) -
+                np.diag(confusion_matrix))
+    FWIoU = (freq[freq > 0] * iu[freq > 0]).sum()
+    return FWIoU
+
+def pixelAcc(confusion_matrix):
+    return np.diag(confusion_matrix).sum() / confusion_matrix.sum()
+
+def meanAcc(confusion_matrix):
+    return np.nanmean(np.diag(confusion_matrix) / np.sum(confusion_matrix, axis=1))
