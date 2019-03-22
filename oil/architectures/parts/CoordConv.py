@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-
+from ...utils.utils import Expression,export,Named
 # Copied from https://github.com/mkocabas/CoordConv-pytorch/blob/master/CoordConv.py repo
 # original paper https://arxiv.org/pdf/1807.03247.pdf
 
@@ -108,7 +108,7 @@ class AddCoords(nn.Module):
 
         return ret
 
-
+@export
 class CoordConv(nn.Module):
 
     def __init__(self, in_channels, out_channels, kernel_size, with_r=False, **kwargs):

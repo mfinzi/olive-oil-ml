@@ -10,8 +10,8 @@ from .ganBase import GanBase, add_spectral_norm, xavier_uniform_init
 
 
 class Generator(GanBase):
-    def __init__(self, z_dim=128,img_channels=3,k=128):
-        super().__init__(z_dim,img_channels)
+    def __init__(self, z_dim=128,img_channels=3,k=128,**kwargs):
+        super().__init__(z_dim,img_channels,**kwargs)
         self.k = k
 
         self.model = nn.Sequential(

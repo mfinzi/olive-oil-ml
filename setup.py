@@ -7,7 +7,7 @@ setup(name="Pristine-ml",
       author='Marc Finzi',
       author_email='maf388@cornell.edu',
       license='MIT',
-      install_requires=['torch','torchvision','pandas','numpy','dill'],
+      install_requires=['torch','torchvision','pandas','numpy','dill','sklearn'],
       #packages=["."],
 )
 pathToThisFile = os.path.dirname(os.path.realpath(__file__))

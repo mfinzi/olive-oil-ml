@@ -7,7 +7,7 @@ import torchcontrib.nn.functional as contrib
 import numpy as np
 #from .spectral_normalization import SpectralNorm
 #from torch.nn.utils import spectral_norm
-from ...utils.utils import Expression
+from ...utils.utils import Expression,export,Named
 from .ganBase import GanBase, add_spectral_norm, xavier_uniform_init
 
 
@@ -80,7 +80,7 @@ class cResBlockGenerator(nn.Module):
         super().__init__()
         self.stride = stride
         self.bn1 = nn.BatchNorm2d(in_channels)
-        self.film1 = CategoricalFiLM(num_classes,in_channels)
+        self.film1 = CategoricalFiLM(num_classes,in_channels) # should it be shared?
         self.relu1 = nn.ReLU()
         self.conv1 = nn.Conv2d(in_channels, out_channels, 3, 1, padding=1)
         self.bn2 = nn.BatchNorm2d(out_channels)

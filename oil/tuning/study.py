@@ -11,6 +11,7 @@ from .slurmExecutor import SlurmExecutor, LocalExecutor
 from ..logging.lazyLogger import LazyLogger
 from ..utils.mytqdm import tqdm
 import os
+from collections.abc import Iterable
 import __main__ as main
 
 def slurm_available():
@@ -30,7 +31,7 @@ class Study(object):
         automatic trial parrallelization via Slurm if available. The trial configs
         that are run are stored in the dataframe self.configs, 
         and trial outcomes in self.outcomes. """
-    def __init__(self, perform_trial, config_spec,
+    def __init__(self, perform_trial, config_spec={},
                     slurm_cfg={}, base_log_dir = None, study_name=None):
         self.perform_trial = perform_trial
         self.config_spec = config_spec
@@ -56,13 +57,14 @@ class Study(object):
             is updated and saved as results come in """
         if new_config_spec: self.config_spec=new_config_spec
         with self.Executor(max_workers) as executor:
+            start_id = len(self.configs)
             futures = [executor.submit(self.perform_trial,
-                        sample_config(self.config_spec),i) for i in range(num_trials)]
+                        sample_config(self.config_spec),start_id+i) for i in range(num_trials)]
             for j, future in enumerate(tqdm(concurrent.futures.as_completed(futures),
                                             total=len(futures),desc=self.name)):
                 cfg, outcome = future.result()
-                cfg_row = pd.DataFrame(flatten_dict(cfg),index=['config {}'.format(j)])
-                outcome_row = outcome.iloc[-1].to_frame('outcome {}'.format(j)).T
+                cfg_row = pd.DataFrame(flatten_dict(cfg),index=['config {}'.format(start_id+j)])
+                outcome_row = outcome.iloc[-1].to_frame('outcome {}'.format(start_id+j)).T
                 self.configs = self.configs.append(cfg_row)
                 self.outcomes = self.outcomes.append(outcome_row)
                 with pd.option_context('display.expand_frame_repr',False):
@@ -102,10 +104,14 @@ def train_trial(make_trainer,strict=False):
             if i is not None:
                 cfg['trainer_config']['log_suffix'] = 'trial{}/'.format(i)
             trainer = make_trainer(cfg)
+            try: cfg['params(M)'] = sum(p.numel() for p in trainer.model.parameters() if p.requires_grad)/10**6
+            except AttributeError: pass
             trainer.logger.add_scalars('config',flatten_dict(cfg))
-            outcome = trainer.train(cfg['num_epochs'])
-            cfg['saved_at'] = trainer.logger.save_object(trainer,
-                                suffix='checkpoints/c{}.trainer'.format(trainer.epoch))
+            epochs = cfg['num_epochs'] if isinstance(cfg['num_epochs'],Iterable) else [cfg['num_epochs']]
+            for portion in epochs:
+                outcome = trainer.train(portion)
+                cfg['saved_at'] = trainer.logger.save_object(trainer,
+                                    suffix='checkpoints/c{}.trainer'.format(trainer.epoch))
             return cfg, outcome
         except Exception as e:
             if strict: raise

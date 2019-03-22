@@ -70,6 +70,10 @@ class Trainer(object):
         for i, sched in enumerate(self.lr_schedulers):
             schedules['lr{}'.format(i)] = sched.get_lr()[0]
         self.logger.add_scalars('schedules', schedules, step)
+
+        for m in self.model.modules():
+            try: m.log_data(self.logger,step)
+            except AttributeError: pass
         self.logger.report()
     
     def evalAverageMetrics(self, loader,metrics):
@@ -77,7 +81,8 @@ class Trainer(object):
         num_total, loss_totals = 0, 0
         with Eval(self.model), torch.no_grad():
             for minibatch in loader:
-                mb_size = minibatch[0].size(0)
+                try: mb_size = minibatch[0].size(0)
+                except AttributeError: mb_size = minibatch[0][0].size(0)
                 loss_totals += mb_size*metrics(minibatch)
                 num_total += mb_size
         if num_total==0: raise KeyError("dataloader is empty")

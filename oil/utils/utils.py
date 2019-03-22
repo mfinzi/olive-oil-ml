@@ -39,28 +39,42 @@ class ReadOnlyDict(dict):
     setdefault = __readonly__
     del __readonly__
 
-class map_with_len(object):
-    def __init__(self, func, iter_with_len):
-        self._func = func
-        self._iter = iter_with_len
-    def __iter__(self):
-        return map(self._func, self._iter)
-    def __len__(self):
-        return len(self._iter)
+# class map_with_len(object):
+#     def __init__(self, func, iter_with_len):
+#         self._func = func
+#         self._iter = iter_with_len
+#     def __iter__(self):
+#         return map(self._func, self._iter)
+#     def __len__(self):
+#         return len(self._iter)
 
-class imap(map_with_len): pass
-
-class LoaderTo(torch.utils.data.DataLoader):
-    def __init__(self,loader, device):
+class imap(torch.utils.data.DataLoader):
+    def __init__(self,func,loader):
         self.__dict__ = loader.__dict__
-        self._device = device
+        self._func = func
 
     def __iter__(self):
-        def minibatch_map(mb):
-            try: return mb.to(self._device)
-            except AttributeError: 
-                return type(mb)(map(lambda x:x.to(self._device),mb))
-        return map(minibatch_map,super().__iter__())
+        return map(self._func,super().__iter__())
+
+
+def LoaderTo(loader,device):
+    def minibatch_to(mb):
+        try: return mb.to(device)
+        except AttributeError: 
+            return type(mb)(minibatch_to(elem) for elem in mb)
+    return imap(minibatch_to,loader)
+
+# class LoaderTo(torch.utils.data.DataLoader):
+#     def __init__(self,loader, device):
+#         self.__dict__ = loader.__dict__
+#         self._device = device
+
+#     def __iter__(self):
+#         def minibatch_map(mb):
+#             try: return mb.to(self._device)
+#             except AttributeError: 
+#                 return type(mb)(minibatch_map(elem) for elem in mb)#map(lambda x:x.to(self._device),mb))
+#         return map(minibatch_map,super().__iter__())
 
 class islice(torch.utils.data.DataLoader):
     def __init__(self,dataloader,k):
@@ -68,9 +82,10 @@ class islice(torch.utils.data.DataLoader):
             if shuffling is enabled, this may be different from different 
             calls to iter """
         self.__dict__= dataloader.__dict__
+        self.dl = dataloader
         self._k = k
     def __iter__(self):
-        return iter(itertools.islice(self,self._k))
+        return iter(itertools.islice(self.dl,self._k))
 
 def to_device_layer(device):
     def minibatch_map(mb):
@@ -157,8 +172,8 @@ def cosLr(cycle_length=1,cycle_mult=1):
         L = 1#cycle_length #base
         current_cycle = np.floor(np.log(1+(r-1)*train_frac/L)/np.log(r))
         current_cycle_length = L*r**current_cycle
-        cycle_iter = train_frac - L*(r**current_cycle - 1)/(r-1)
-        cos_scale = .5*(1 + np.cos(np.pi*cycle_iter/current_cycle_length))
+        cycle_iter = train_frac - L*(r**current_cycle - 1)/(r-1) #(cap lr from going too low)
+        cos_scale = .5*(1 + np.cos(np.pi*cycle_iter/current_cycle_length))+1e-4
         return cos_scale
     return lrSched
 

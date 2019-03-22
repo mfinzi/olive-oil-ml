@@ -7,12 +7,7 @@ from oil.model_trainers.cGan import cGan
 from oil.model_trainers.classifier import Classifier
 from oil.datasetup.datasets import CIFAR10, C10augLayers
 from oil.datasetup.dataloaders import getLabLoader
-<<<<<<< HEAD
 from oil.architectures.img_gen import conditionalgan
-=======
-#from oil.architectures.networkparts import layer13,ConvSmallNWN
-from oil.architectures import conditionalgan
->>>>>>> c5d2fa6cde6a32286192b92717fdfd242448c3ed
 from oil.utils.utils import cosLr, loader_to,imap,islice
 
 
