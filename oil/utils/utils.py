@@ -172,10 +172,10 @@ class Expression(nn.Module):
 
 def cosLr(num_epochs,cycle_mult=1):
     if isinstance(num_epochs, collections.abc.Iterable):
-        epochs = sum(num_epochs)
+        num_epochs = sum(num_epochs)
     def lrSched(epoch):
         r = cycle_mult + 1e-8
-        L = epochs#cycle_length #base
+        L = num_epochs#cycle_length #base
         current_cycle = np.floor(np.log(1+(r-1)*epoch/L)/np.log(r))
         current_cycle_length = L*r**current_cycle
         cycle_iter = epoch - L*(r**current_cycle - 1)/(r-1) #(cap lr from going too low)
