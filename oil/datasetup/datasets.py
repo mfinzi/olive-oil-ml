@@ -55,7 +55,7 @@ class CIFAR100(EasyIMGDataset,ds.CIFAR100):
 class SVHN(EasyIMGDataset,ds.SVHN):
     #TODO: Find real mean and std
     means = (0.5, 0.5, 0.5)
-    stds = (0.5, 0.5, 0.5)
+    stds = (0.25, 0.25, 0.25)
     num_classes=10
     def default_aug_layers(self):
         return nn.Sequential(

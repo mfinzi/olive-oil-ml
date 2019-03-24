@@ -26,17 +26,18 @@ class Trainer(object):
         #self.logger.add_text('ModelSpec','model: {}'.format(model))
         self.hypers = {}
 
-    def train_to(self, final_epoch=100):
-        return self.train(final_epoch-self.epoch)
+    # train_to won't work because of step based lr sched
+    # def train_to(self, final_epoch=100):
+    #     return self.train(final_epoch-self.epoch)
 
     def train(self, num_epochs=100):
         """ The main training loop"""
         start_epoch = self.epoch
-        total_steps = (start_epoch + num_epochs)*len(self.dataloaders['train'])
+        steps_per_epoch = len(self.dataloaders['train'])
         for self.epoch in tqdm(range(start_epoch+1, start_epoch + num_epochs+1),desc='train'):
             for i, minibatch in enumerate(self.dataloaders['train']):
-                step = i + (self.epoch-1)*len(self.dataloaders['train'])
-                [sched.step(step/total_steps) for sched in self.lr_schedulers]
+                step = i + (self.epoch-1)*steps_per_epoch
+                [sched.step(step/steps_per_epoch) for sched in self.lr_schedulers]
                 with self.logger as do_log:
                     if do_log: self.logStuff(step, minibatch)
                 self.step(minibatch)

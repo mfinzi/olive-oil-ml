@@ -10,6 +10,8 @@ import dill
 import itertools
 import sys
 import torch.utils.data
+import collections
+
 
 class Named(type):
     def __str__(self):
@@ -48,13 +50,13 @@ class ReadOnlyDict(dict):
 #     def __len__(self):
 #         return len(self._iter)
 
-class imap(torch.utils.data.DataLoader):
-    def __init__(self,func,loader):
-        self.__dict__ = loader.__dict__
-        self._func = func
-
-    def __iter__(self):
-        return map(self._func,super().__iter__())
+def imap(func,loader):
+    class _imap(loader.__class__):
+        def __init__(self,loader):
+            self.__dict__ = loader.__dict__
+        def __iter__(self):
+            return map(func,super().__iter__())
+    return _imap(loader)
 
 
 def LoaderTo(loader,device):
@@ -166,14 +168,18 @@ class Expression(nn.Module):
     def forward(self, x):
         return self.func(x)
 
-def cosLr(cycle_length=1,cycle_mult=1):
-    def lrSched(train_frac):
+
+
+def cosLr(num_epochs,cycle_mult=1):
+    if isinstance(num_epochs, collections.abc.Iterable):
+        epochs = sum(num_epochs)
+    def lrSched(epoch):
         r = cycle_mult + 1e-8
-        L = 1#cycle_length #base
-        current_cycle = np.floor(np.log(1+(r-1)*train_frac/L)/np.log(r))
+        L = epochs#cycle_length #base
+        current_cycle = np.floor(np.log(1+(r-1)*epoch/L)/np.log(r))
         current_cycle_length = L*r**current_cycle
-        cycle_iter = train_frac - L*(r**current_cycle - 1)/(r-1) #(cap lr from going too low)
-        cos_scale = .5*(1 + np.cos(np.pi*cycle_iter/current_cycle_length))+1e-4
+        cycle_iter = epoch - L*(r**current_cycle - 1)/(r-1) #(cap lr from going too low)
+        cos_scale = .5*(1 + np.cos(np.pi*cycle_iter/current_cycle_length))+1e-3
         return cos_scale
     return lrSched
 

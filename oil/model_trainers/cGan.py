@@ -49,12 +49,11 @@ class Pix2Pix(cGan):
 
 
 from torch.utils.data import DataLoader
-from oil.utils.utils import LoaderTo, cosLr, recursively_update
+from oil.utils.utils import LoaderTo, cosLr, recursively_update,imap,islice
 from oil.tuning.study import train_trial
 from oil.datasetup.dataloaders import getLabLoader
 from oil.datasetup.datasets import CIFAR10
 from oil.architectures.img_classifiers import layer13s
-from oil.utils.utils import LoaderTo, cosLr, recursively_update,imap,islice
 from oil.architectures.img_gen import conditionalgan
 
 def simpleGanTrial(strict=False):
@@ -78,9 +77,8 @@ def simpleGanTrial(strict=False):
         imgs_only  = imap(lambda z: z[0], dataloaders['train'])
         dataloaders['dev'] = islice(imgs_only,5000//cfg['loader_config']['lab_BS'])
         dataloaders = {k: LoaderTo(v,device) for k,v in dataloaders.items()}
-
         opt_constr = lambda params: torch.optim.Adam(params,**cfg['opt_config'])
-        lr_sched = cosLr()
+        lr_sched = cosLr(cfg['num_epochs'])
         trainer = cfg['trainer'](G,dataloaders,opt_constr=opt_constr,
                                 lr_sched=lr_sched,D=D,**cfg['trainer_config'])
         return trainer
