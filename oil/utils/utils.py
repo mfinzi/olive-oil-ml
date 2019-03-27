@@ -11,7 +11,7 @@ import itertools
 import sys
 import torch.utils.data
 import collections
-
+import random
 
 class Named(type):
     def __str__(self):
@@ -238,10 +238,13 @@ class FixedNumpySeed(object):
     def __init__(self, seed):
         self.seed = seed
     def __enter__(self):
-        self.rng_state = np.random.get_state()
+        self.np_rng_state = np.random.get_state()
         np.random.seed(self.seed)
+        self.rand_rng_state = random.getstate()
+        random.seed(self.seed)
     def __exit__(self, *args):
-        np.random.set_state(self.rng_state)
+        np.random.set_state(self.np_rng_state) 
+        random.setstate(self.rand_rng_state)
 
 class Expression(nn.Module):
     def __init__(self, func):

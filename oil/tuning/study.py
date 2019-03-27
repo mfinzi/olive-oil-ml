@@ -1,5 +1,6 @@
+
 import dill
-from .configGenerator import sample_config, flatten_dict
+from .configGenerator import sample_config, flatten_dict,grid_iter
 import subprocess
 import collections
 import pandas as pd
@@ -51,15 +52,16 @@ class Study(object):
             flat_cfgs.append(row,ignore_index=True)
         return flat_cfgs
 
-    def run(self, num_trials, max_workers=10, new_config_spec=None):
+    def run(self, num_trials=None, max_workers=1, new_config_spec=None):
         """ runs the study with num_trials and max_workers slurm nodes
             trials are executed in parallel by the slurm nodes, study object
             is updated and saved as results come in """
         if new_config_spec: self.config_spec=new_config_spec
         with self.Executor(max_workers) as executor:
             start_id = len(self.configs)
+            configs = grid_iter(self.config_spec,num_trials)
             futures = [executor.submit(self.perform_trial,
-                        sample_config(self.config_spec),start_id+i) for i in range(num_trials)]
+                        cfg,start_id+i) for i, cfg in enumerate(configs)]
             for j, future in enumerate(tqdm(concurrent.futures.as_completed(futures),
                                             total=len(futures),desc=self.name)):
                 cfg, outcome = future.result()
@@ -72,6 +74,10 @@ class Study(object):
                     print(self.outcomes.iloc[-1:])
                 save_loc = self.logger.save_object(self,'study.s')
         return save_loc
+        # we could pass in a function that outputs the generator, and that function
+        # can be pickled (by dill)
+        # IF we save the current iteration, a generator can also be resumed,
+        
                 # TODO log current best? start with add_text current best 
                 # & add_scalars of current best outcome
     def covariates(self):
