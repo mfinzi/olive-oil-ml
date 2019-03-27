@@ -50,21 +50,88 @@ class ReadOnlyDict(dict):
 #     def __len__(self):
 #         return len(self._iter)
 
-def imap(func,loader):
-    class _imap(loader.__class__):
-        def __init__(self,loader):
-            self.__dict__ = loader.__dict__
-        def __iter__(self):
-            return map(func,super().__iter__())
-    return _imap(loader)
+# class imap(torch.utils.data.DataLoader):
+#     def __init__(self,func,loader):
+#         try: loader_func = loader._func
+#         except AttributeError: loader_func=lambda x:x
+#         self.__dict__ = loader.__dict__
+#         self._dl = loader
+#         self._func = lambda x: func(loader_func(x))
+#     def __iter__(self):
+#         return map(self._func,self._dl.__iter__())
+# def imap(func,loader):
+#     class _imap(loader.__class__):
+#         def __init__(self,loader):
+#             self.__dict__ = loader.__dict__
+#         def __iter__(self):
+#             return map(func,super().__iter__())
+#     return _imap(loader)
 
+class Wrapper(object):
+    # Special methods are dispatched by what is defined in the class rather
+    # than the instance, so it bypasses __getattr__, as a result for a
+    # wrapper that makes use of any of these methods, we must dynamically dispatch
+    # the special methods at the instance level (using getattr)
+    def __init__(self, obj):
+        self._wrapped_obj = obj
+    def __getattr__(self, attr):
+        if attr =='_wrapped_obj': assert False
+        if attr == '__dict__': assert False
+        #if attr not in self.__dict__: raise AttributeError
+        return getattr(self._wrapped_obj, attr)
+smethods =    '''__bool__ __int__ __float__ __complex__ __index__
+                 __len__ __getitem__ __setitem__ __delitem__ __contains__
+                 __iter__ __next__ __reversed__
+                 __call__ __enter__ __exit__
+                 __str__ __repr__  __bytes__ __format__
+                 __eq__ __ne__ __lt__ __le__ __gt__ __ge__ __hash__
+                 __add__ __mul__ __sub__ __truediv__ __floordiv__ __mod__
+                 __and__ __or__ __xor__ __invert__ __lshift__ __rshift__
+                 __pos__ __neg__ __abs__ __pow__ __divmod__
+                 __round__ __ceil__ __floor__ __trunc__
+                 __radd__ __rmul__ __rsub__ __rtruediv__ __rfloordiv__ __rmod__
+                 __rand__ __ror__ __rxor__ __rlshift__ __rrshift__
+                 __rpow__ __rdivmod__
+                 __get__ __set__ __delete__
+                 __dir__ __sizeof__'''.split()
+for sm in smethods:
+    setattr(Wrapper, sm, lambda self, *args, sm=sm: Wrapper.__getattr__(self,sm)(*args))
 
+class imap(Wrapper):
+    def __init__(self,func,loader):
+        super().__init__(loader)
+        self._func = func
+    def __iter__(self):
+        return map(self._func,super().__iter__())
+
+class islice(Wrapper):
+    def __init__(self,loader,k):
+        super().__init__(loader)
+        self._k = k
+    def __iter__(self):
+        return iter(itertools.islice(super().__iter__(),self._k))
+
+# class imap(object):
+#     def __init__(self,func,loader):
+#         self.func = func
+#         self.loader = loader
+#     def __iter__(self):
+#         return map(self.func,self.loader.__iter__())
+#     def __getattr__(self,name):
+#         if name==
+#         return self.loader.__getattribute__(name)
+#     def __setattr__(self,name,value):
+#         if name not in ['func','loader']:
+#             self.loader.__setattr__(name,value)
+#         else: super().__setattr__(name,value)
+
+def minibatch_to(device,mb):
+    try: return mb.to(device)
+    except AttributeError: 
+        return type(mb)(minibatch_to(device,elem) for elem in mb)
+import functools
 def LoaderTo(loader,device):
-    def minibatch_to(mb):
-        try: return mb.to(device)
-        except AttributeError: 
-            return type(mb)(minibatch_to(elem) for elem in mb)
-    return imap(minibatch_to,loader)
+    return imap(functools.partial(minibatch_to,device),loader)
 
 # class LoaderTo(torch.utils.data.DataLoader):
 #     def __init__(self,loader, device):
@@ -78,16 +145,32 @@ def LoaderTo(loader,device):
 #                 return type(mb)(minibatch_map(elem) for elem in mb)#map(lambda x:x.to(self._device),mb))
 #         return map(minibatch_map,super().__iter__())
 
-class islice(torch.utils.data.DataLoader):
-    def __init__(self,dataloader,k):
-        """ Wraps a dataloader, but only takes the first k elements with iter,
-            if shuffling is enabled, this may be different from different 
-            calls to iter """
-        self.__dict__= dataloader.__dict__
-        self.dl = dataloader
-        self._k = k
-    def __iter__(self):
-        return iter(itertools.islice(self.dl,self._k))
+# class islice(object):
+#     def __init__(self,dataloader,k):
+#         """ Wraps a dataloader, but only takes the first k elements with iter,
+#             if shuffling is enabled, this may be different from different 
+#             calls to iter """
+#         self._k = k
+#         self.loader = dataloader
+#     def __iter__(self):
+#         return iter(itertools.islice(self.loader),self._k)
+#     def __getattr__(self,name):
+#         return self.loader.__getattribute__(name)
+#     def __setattr__(self,name,value):
+#         if name not in ['_k','loader']:
+#             self.loader.__setattr__(name,value)
+#         else: super().__setattr__(name,value)
+
+# class islice(torch.utils.data.DataLoader):
+#     def __init__(self,dataloader,k):
+#         """ Wraps a dataloader, but only takes the first k elements with iter,
+#             if shuffling is enabled, this may be different from different 
+#             calls to iter """
+#         self.__dict__= dataloader.__dict__
+#         self.dl = dataloader
+#         self._k = k
+#     def __iter__(self):
+#         return iter(itertools.islice(self.dl,self._k))
 
 def to_device_layer(device):
     def minibatch_map(mb):
