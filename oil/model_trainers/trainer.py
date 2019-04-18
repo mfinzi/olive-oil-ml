@@ -12,12 +12,11 @@ class Trainer(object):
         """
     def __init__(self, model, dataloaders, 
                 opt_constr=optim.Adam, lr_sched = lambda e: 1, 
-                log_dir=None, log_suffix='',log_args={}):#,extraInit=lambda:None):
+                log_dir=None, log_suffix='',log_args={}):
 
         # Setup model, optimizer, and dataloaders
         self.model = model
         self.optimizer = opt_constr(self.model.parameters())
-        # self.lr_scheduler = lr_sched(self.optimizer)
         self.lr_schedulers = [optim.lr_scheduler.LambdaLR(self.optimizer,lr_sched)]
         self.dataloaders = dataloaders # A dictionary of dataloaders
         self.epoch = 0
@@ -26,9 +25,8 @@ class Trainer(object):
         #self.logger.add_text('ModelSpec','model: {}'.format(model))
         self.hypers = {}
 
-    # train_to won't work because of step based lr sched
-    # def train_to(self, final_epoch=100):
-    #     return self.train(final_epoch-self.epoch)
+    def train_to(self, final_epoch=100):
+        return self.train(final_epoch-self.epoch)
 
     def train(self, num_epochs=100):
         """ The main training loop"""
@@ -72,9 +70,11 @@ class Trainer(object):
             schedules['lr{}'.format(i)] = sched.get_lr()[0]
         self.logger.add_scalars('schedules', schedules, step)
 
-        for m in self.model.modules():
-            try: m.log_data(self.logger,step)
-            except AttributeError: pass
+        j = 0
+        for name,m in self.model.named_modules():
+            if hasattr(m, 'log_data'):
+                j+=1
+                m.log_data(self.logger,step,name)
         self.logger.report()
     
     def evalAverageMetrics(self, loader,metrics):

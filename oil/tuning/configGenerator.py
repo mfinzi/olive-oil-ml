@@ -113,47 +113,32 @@ class grid_iter(object):
         self.cfg_flat = flatten(config_spec)
         is_grid_iterable = lambda v: (isinstance(v,Iterable) and not isinstance(v,(str,bytes,dict,tuple)))
         iterables = sorted({k:v for k,v in self.cfg_flat.items() if is_grid_iterable(v)}.items())
-        #not_iterables = {k:v for k,v in cfg_flat.items() if not is_iterable}
-        self.iter_keys,self.iter_vals = zip(*iterables)
+        if iterables: self.iter_keys,self.iter_vals = zip(*iterables)
+        else: self.iter_keys,self.iter_vals = [],[[]]
+        self.vals = list(itertools.product(*self.iter_vals))
+        with FixedNumpySeed(0): random.shuffle(self.vals)
         self.num_elements = num_elements if num_elements is not None else len(self)
     def reset(self):
         self.i=0
-        self.vals = list(itertools.product(*self.iter_vals))
-        with FixedNumpySeed(0): random.shuffle(self.vals)
-        self.vals = iter(self.vals)
+        self.vals_iter = iter(self.vals)
     def __iter__(self):
         self.reset()
         return self
     def __next__(self):
         self.i+=1
         if self.i > self.num_elements: raise StopIteration
-        try: v = next(self.vals)
-        except StopIteration:
-            self.reset()
-            v = next(self.vals)
+        if not self.vals: v = []
+        else:
+            try: v = next(self.vals_iter)
+            except StopIteration:
+                self.reset()
+                v = next(self.vals_iter)
         chosen_iter_params = dict(zip(self.iter_keys,v))
         self.cfg_flat.update(chosen_iter_params)
-        return unflatten(sample_config(self.cfg_flat))
+        return sample_config(unflatten(self.cfg_flat))
     def __len__(self):
         product = functools.partial(functools.reduce, operator.mul)
-        return product(len(v) for v in self.iter_vals)
-
-
-# def grid_gen(config_spec,shuffle=True):
-#     """ Returns a generator that will iterate through the grid defined by config_spec,
-#         tuples are excluded """
-#     cfg_flat = flatten(config_spec)
-#     is_grid_iterable = lambda v: (isinstance(v,Iterable) and not isinstance(v,(str,bytes,dict,tuple)))
-#     iterables = sorted({k:v for k,v in cfg_flat.items() if is_grid_iterable})
-#     #not_iterables = {k:v for k,v in cfg_flat.items() if not is_iterable}
-#     iter_keys,iter_vals = zip(*iterables)
-#     vals = itertools.product(*iter_vals)
-#     if shuffle: 
-#         with FixedNumpySeed(0): vals = random.shuffle(list(vals))
-#     for v in itertools.product(*iter_vals):
-#         chosen_iter_params = dict(zip(iter_keys,v))
-#         cfg_flat.update(chosen_iter_params)
-#         yield unflatten(sample_config(cfg_flat))
+        return product(len(v) for v in self.iter_vals) if self.vals else 1
 
 def flatten_dict(d):
     """ Flattens a dictionary, ignoring outer keys. Only

@@ -75,7 +75,7 @@ class Wrapper(object):
     def __init__(self, obj):
         self._wrapped_obj = obj
     def __getattr__(self, attr):
-        if attr =='_wrapped_obj': assert False
+        if attr =='_wrapped_obj': raise AttributeError
         if attr == '__dict__': assert False
         #if attr not in self.__dict__: raise AttributeError
         return getattr(self._wrapped_obj, attr)
@@ -226,11 +226,12 @@ class icycle(object):
         return 10**10
 
 class Eval(object):
-    def __init__(self, model):
+    def __init__(self, model, on=True):
         self.model = model
+        self.on = on
     def __enter__(self):
         self.training_state = self.model.training
-        self.model.train(False)
+        self.model.train(not self.on)
     def __exit__(self, *args):
         self.model.train(self.training_state)
 
