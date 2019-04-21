@@ -111,6 +111,28 @@ class islice(Wrapper):
     def __iter__(self):
         return iter(itertools.islice(super().__iter__(),self._k))
 
+## Wraps a dataloader and cycles repeatedly
+class icycle(Wrapper):
+    def __init__(self,dataloader):
+        super().__init__(dataloader)
+    def __iter__(self):
+        while True:
+            for data in super().__iter__():
+                yield data
+    def __len__(self):
+        return 10**10
+
+# ## Wraps a dataloader and cycles repeatedly
+# class icycle(object):
+#     def __init__(self,dataloader):
+#         self.dataloader = dataloader
+#     def __iter__(self):
+#         while True:
+#             for data in self.dataloader:
+#                 yield data
+#     def __len__(self):
+#         return 10**10
+
 # class imap(object):
 #     def __init__(self,func,loader):
 #         self.func = func
@@ -214,16 +236,7 @@ class izip(object):
         return iter(zip(*self.iters))
     def __len__(self):
         return min(len(it) for it in self.iters)
-## Wraps a dataloader and cycles repeatedly
-class icycle(object):
-    def __init__(self,dataloader):
-        self.dataloader = dataloader
-    def __iter__(self):
-        while True:
-            for data in self.dataloader:
-                yield data
-    def __len__(self):
-        return 10**10
+
 
 class Eval(object):
     def __init__(self, model, on=True):

@@ -48,3 +48,31 @@ class smallCNN(nn.Module,metaclass=Named):
         )
     def forward(self,x):
         return self.net(x)
+
+@export
+class layer13s(nn.Module,metaclass=Named):
+    """
+    Very small CNN
+    """
+    def __init__(self, num_classes=10,k=128):
+        super().__init__()
+        self.num_classes = num_classes
+        self.net = nn.Sequential(
+            ConvBNrelu(3,k),
+            ConvBNrelu(k,k),
+            ConvBNrelu(k,2*k),
+            nn.MaxPool2d(2),
+            nn.Dropout2d(),
+            ConvBNrelu(2*k,2*k),
+            ConvBNrelu(2*k,2*k),
+            ConvBNrelu(2*k,2*k),
+            nn.MaxPool2d(2),
+            nn.Dropout2d(),
+            ConvBNrelu(2*k,4*k),
+            ConvBNrelu(4*k,2*k),
+            ConvBNrelu(2*k,2*k),
+            Expression(lambda u:u.mean(-1).mean(-1)),
+            nn.Linear(2*k,num_classes)
+        )
+    def forward(self,x):
+        return self.net(x)

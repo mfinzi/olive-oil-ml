@@ -58,8 +58,9 @@ class Trainer(object):
 
     def logStuff(self, step, minibatch=None):
         metrics = {}
-        try: metrics['Minibatch_Loss'] = self.loss(minibatch).cpu().data.numpy()
-        except (NotImplementedError, TypeError): pass
+        if minibatch:
+            try: metrics['Minibatch_Loss'] = self.loss(minibatch).cpu().data.numpy()
+            except (NotImplementedError, TypeError): pass
         for loader_name,dloader in self.dataloaders.items():
             if loader_name=='train' or len(dloader)==0: continue # Ignore metrics on train
             for metric_name, metric_value in self.metrics(dloader).items():
@@ -70,10 +71,8 @@ class Trainer(object):
             schedules['lr{}'.format(i)] = sched.get_lr()[0]
         self.logger.add_scalars('schedules', schedules, step)
 
-        j = 0
         for name,m in self.model.named_modules():
             if hasattr(m, 'log_data'):
-                j+=1
                 m.log_data(self.logger,step,name)
         self.logger.report()
     
