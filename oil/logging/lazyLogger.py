@@ -107,7 +107,7 @@ class LazyLogger(LogTimer, MaybeTbWriterWSerial):
         return emas
 
     @property # Needs to be read only
-    def log_dir(self): # Whatever was assigned by the tbwriter
+    def log_dirr(self): # Whatever was assigned by the tbwriter
         return self._log_dir
 
     def emas(self):
@@ -144,7 +144,7 @@ class LazyLogger(LogTimer, MaybeTbWriterWSerial):
             super().add_scalars(tag, dic, step)#, walltime=walltime) #TODO: update tensorboardX?
 
     def save_object(self,obj,suffix):
-        final_path = os.path.join(self.log_dir,suffix)
+        final_path = os.path.join(self.log_dirr,suffix)
         os.makedirs(os.path.dirname(final_path),exist_ok=True)
         torch.save(obj,final_path,pickle_module=dill)
         return os.path.abspath(final_path)
@@ -163,4 +163,4 @@ class LazyLogger(LogTimer, MaybeTbWriterWSerial):
     def __str__(self):
         return "{} object with text: {}, constants: {}, scalar_frame: {}.\n\
             logging in directory: {}".format(
-            self.__class__,self.text,self.constants,self.scalar_frame,self.log_dir)
+            self.__class__,self.text,self.constants,self.scalar_frame,self.log_dirr)
