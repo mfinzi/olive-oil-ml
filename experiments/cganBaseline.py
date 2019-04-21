@@ -7,12 +7,7 @@ from oil.model_trainers.cGan import cGan
 from oil.model_trainers.classifier import Classifier
 from oil.datasetup.datasets import CIFAR10, C10augLayers
 from oil.datasetup.dataloaders import getLabLoader
-<<<<<<< HEAD
 from oil.architectures.img_gen import conditionalgan
-=======
-#from oil.architectures.networkparts import layer13,ConvSmallNWN
-from oil.architectures import conditionalgan
->>>>>>> c5d2fa6cde6a32286192b92717fdfd242448c3ed
 from oil.utils.utils import cosLr, loader_to,imap,islice
 
 
@@ -20,7 +15,7 @@ train_epochs = 400
 loader_config =     {'amnt_dev':0,'lab_BS':64,'dataseed':0,'num_workers':1}
 trainer_config = {'n_disc':2}
 trainer_config['log_dir'] = os.path.expanduser('~/tb-experiments/cgan_k128_3/')
-sched_config =      {'cycle_length':train_epochs,'cycle_mult':1}
+sched_config =      {'num_epochs':train_epochs,'cycle_mult':1}
 opt_config = {'lr':2e-4,'betas':(.5,.999)}
 
 

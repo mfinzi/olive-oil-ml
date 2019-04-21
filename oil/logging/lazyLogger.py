@@ -61,7 +61,10 @@ class MaybeTbWriterWSerial(MaybeTbWriter):
     def __setstate__(self,state):
         self.__init__(log_dir = state['_log_dir'])
         self.__dict__.update(state)
-
+    def add_scalars(self,main_tag,tag_scalar_dict,global_step=None,walltime=None):
+        for tag,scalar in tag_scalar_dict.items():
+            full_tag = f"{main_tag}/{tag}"
+            self.add_scalar(full_tag,scalar,global_step,walltime)
 def tb_default_logdir(comment=''):
     import socket
     from datetime import datetime
@@ -110,7 +113,7 @@ class LazyLogger(LogTimer, MaybeTbWriterWSerial):
     def emas(self):
         """ Returns the exponential moving average of the logged
             scalars (not consts) """
-        return self.scalar_frame.ewm(com=self._com).mean().iloc[-1:]
+        return self.scalar_frame.iloc[-1:]#.ewm(com=self._com).mean()
 
     def add_text(self, tag, text_string):
         """ text_string is logged (into text and tensorboard)

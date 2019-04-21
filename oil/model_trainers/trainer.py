@@ -12,12 +12,11 @@ class Trainer(object):
         """
     def __init__(self, model, dataloaders, 
                 opt_constr=optim.Adam, lr_sched = lambda e: 1, 
-                log_dir=None, log_suffix='',log_args={}):#,extraInit=lambda:None):
+                log_dir=None, log_suffix='',log_args={}):
 
         # Setup model, optimizer, and dataloaders
         self.model = model
         self.optimizer = opt_constr(self.model.parameters())
-        # self.lr_scheduler = lr_sched(self.optimizer)
         self.lr_schedulers = [optim.lr_scheduler.LambdaLR(self.optimizer,lr_sched)]
         self.dataloaders = dataloaders # A dictionary of dataloaders
         self.epoch = 0
@@ -32,11 +31,11 @@ class Trainer(object):
     def train(self, num_epochs=100):
         """ The main training loop"""
         start_epoch = self.epoch
-        total_steps = (start_epoch + num_epochs)*len(self.dataloaders['train'])
+        steps_per_epoch = len(self.dataloaders['train'])
         for self.epoch in tqdm(range(start_epoch+1, start_epoch + num_epochs+1),desc='train'):
             for i, minibatch in enumerate(self.dataloaders['train']):
-                step = i + (self.epoch-1)*len(self.dataloaders['train'])
-                [sched.step(step/total_steps) for sched in self.lr_schedulers]
+                step = i + (self.epoch-1)*steps_per_epoch
+                [sched.step(step/steps_per_epoch) for sched in self.lr_schedulers]
                 with self.logger as do_log:
                     if do_log: self.logStuff(step, minibatch)
                 self.step(minibatch)
@@ -59,8 +58,9 @@ class Trainer(object):
 
     def logStuff(self, step, minibatch=None):
         metrics = {}
-        try: metrics['Minibatch_Loss'] = self.loss(minibatch).cpu().data.numpy()
-        except (NotImplementedError, TypeError): pass
+        if minibatch:
+            try: metrics['Minibatch_Loss'] = self.loss(minibatch).cpu().data.numpy()
+            except (NotImplementedError, TypeError): pass
         for loader_name,dloader in self.dataloaders.items():
             if loader_name=='train' or len(dloader)==0: continue # Ignore metrics on train
             for metric_name, metric_value in self.metrics(dloader).items():
@@ -70,6 +70,10 @@ class Trainer(object):
         for i, sched in enumerate(self.lr_schedulers):
             schedules['lr{}'.format(i)] = sched.get_lr()[0]
         self.logger.add_scalars('schedules', schedules, step)
+
+        for name,m in self.model.named_modules():
+            if hasattr(m, 'log_data'):
+                m.log_data(self.logger,step,name)
         self.logger.report()
     
     def evalAverageMetrics(self, loader,metrics):
@@ -77,7 +81,8 @@ class Trainer(object):
         num_total, loss_totals = 0, 0
         with Eval(self.model), torch.no_grad():
             for minibatch in loader:
-                mb_size = minibatch[0].size(0)
+                try: mb_size = minibatch[0].size(0)
+                except AttributeError: mb_size = minibatch[0][0].size(0)
                 loss_totals += mb_size*metrics(minibatch)
                 num_total += mb_size
         if num_total==0: raise KeyError("dataloader is empty")

@@ -46,7 +46,7 @@ class Regressor(Trainer):
 # Convenience function for that covers a common use case of training the model using
 #   the cosLr schedule, and logging the outcome and returning the results
 from torch.utils.data import DataLoader
-from oil.utils.utils import LoaderTo, cosLr, recursively_update
+from oil.utils.utils import LoaderTo, cosLr, recursively_update,islice
 from oil.tuning.study import train_trial
 from oil.datasetup.dataloaders import getLabLoader
 from oil.datasetup.datasets import CIFAR10
@@ -70,12 +70,13 @@ def simpleClassifierTrial(strict=False):
         )
         dataloaders = {}
         dataloaders['train'], dataloaders['dev'] = getLabLoader(trainset,**cfg['loader_config'])
+        dataloaders['Train'] = islice(dataloaders['train'],10000//cfg['loader_config']['lab_BS'])
         if len(dataloaders['dev'])==0:
             testset = cfg['dataset']('~/datasets/{}/'.format(cfg['dataset']),train=False)
             dataloaders['test'] = DataLoader(testset,batch_size=cfg['loader_config']['lab_BS'],shuffle=False)
         dataloaders = {k:LoaderTo(v,device) for k,v in dataloaders.items()}
         opt_constr = lambda params: torch.optim.SGD(params, **cfg['opt_config'])
-        lr_sched = cosLr()
+        lr_sched = cosLr(cfg['num_epochs'])
         return Classifier(fullCNN,dataloaders,opt_constr,lr_sched,**cfg['trainer_config'])
     return train_trial(makeTrainer,strict)
     

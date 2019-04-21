@@ -1,5 +1,6 @@
+
 import dill
-from .configGenerator import sample_config, flatten_dict
+from .configGenerator import sample_config, flatten_dict,grid_iter
 import subprocess
 import collections
 import pandas as pd
@@ -11,6 +12,7 @@ from .slurmExecutor import SlurmExecutor, LocalExecutor
 from ..logging.lazyLogger import LazyLogger
 from ..utils.mytqdm import tqdm
 import os
+from collections.abc import Iterable
 import __main__ as main
 
 def slurm_available():
@@ -30,7 +32,7 @@ class Study(object):
         automatic trial parrallelization via Slurm if available. The trial configs
         that are run are stored in the dataframe self.configs, 
         and trial outcomes in self.outcomes. """
-    def __init__(self, perform_trial, config_spec,
+    def __init__(self, perform_trial, config_spec={},
                     slurm_cfg={}, base_log_dir = None, study_name=None):
         self.perform_trial = perform_trial
         self.config_spec = config_spec
@@ -50,19 +52,21 @@ class Study(object):
             flat_cfgs.append(row,ignore_index=True)
         return flat_cfgs
 
-    def run(self, num_trials, max_workers=10, new_config_spec=None):
+    def run(self, num_trials=None, max_workers=1, new_config_spec=None):
         """ runs the study with num_trials and max_workers slurm nodes
             trials are executed in parallel by the slurm nodes, study object
             is updated and saved as results come in """
         if new_config_spec: self.config_spec=new_config_spec
         with self.Executor(max_workers) as executor:
+            start_id = len(self.configs)
+            configs = grid_iter(self.config_spec,num_trials)
             futures = [executor.submit(self.perform_trial,
-                        sample_config(self.config_spec),i) for i in range(num_trials)]
+                        cfg,start_id+i) for i, cfg in enumerate(configs)]
             for j, future in enumerate(tqdm(concurrent.futures.as_completed(futures),
                                             total=len(futures),desc=self.name)):
                 cfg, outcome = future.result()
-                cfg_row = pd.DataFrame(flatten_dict(cfg),index=['config {}'.format(j)])
-                outcome_row = outcome.iloc[-1].to_frame('outcome {}'.format(j)).T
+                cfg_row = pd.DataFrame(flatten_dict(cfg),index=['config {}'.format(start_id+j)])
+                outcome_row = outcome.iloc[-1].to_frame('outcome {}'.format(start_id+j)).T
                 self.configs = self.configs.append(cfg_row)
                 self.outcomes = self.outcomes.append(outcome_row)
                 with pd.option_context('display.expand_frame_repr',False):
@@ -70,6 +74,10 @@ class Study(object):
                     print(self.outcomes.iloc[-1:])
                 save_loc = self.logger.save_object(self,'study.s')
         return save_loc
+        # we could pass in a function that outputs the generator, and that function
+        # can be pickled (by dill)
+        # IF we save the current iteration, a generator can also be resumed,
+        
                 # TODO log current best? start with add_text current best 
                 # & add_scalars of current best outcome
     def covariates(self):
@@ -102,10 +110,14 @@ def train_trial(make_trainer,strict=False):
             if i is not None:
                 cfg['trainer_config']['log_suffix'] = 'trial{}/'.format(i)
             trainer = make_trainer(cfg)
+            try: cfg['params(M)'] = sum(p.numel() for p in trainer.model.parameters() if p.requires_grad)/10**6
+            except AttributeError: pass
             trainer.logger.add_scalars('config',flatten_dict(cfg))
-            outcome = trainer.train(cfg['num_epochs'])
-            cfg['saved_at'] = trainer.logger.save_object(trainer,
-                                suffix='checkpoints/c{}.trainer'.format(trainer.epoch))
+            epochs = cfg['num_epochs'] if isinstance(cfg['num_epochs'],Iterable) else [cfg['num_epochs']]
+            for portion in epochs:
+                outcome = trainer.train(portion)
+                cfg['saved_at'] = trainer.logger.save_object(trainer,
+                                    suffix='checkpoints/c{}.trainer'.format(trainer.epoch))
             return cfg, outcome
         except Exception as e:
             if strict: raise

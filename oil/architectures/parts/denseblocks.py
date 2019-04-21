@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from ...utils.utils import Expression,export,Named
 # Densenet blocks ported from 
 # https://github.com/bfortuner/pytorch_tiramisu/blob/master/models/layers.py
 
@@ -15,7 +16,7 @@ class DenseLayer(nn.Sequential):
     def forward(self, x):
         return super().forward(x)
 
-
+@export
 class DenseBlock(nn.Module):
     def __init__(self, in_channels, growth_rate, n_layers, upsample=False):
         super().__init__()

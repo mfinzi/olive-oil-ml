@@ -10,6 +10,8 @@ import dill
 import itertools
 import sys
 import torch.utils.data
+import collections
+import random
 
 class Named(type):
     def __str__(self):
@@ -39,38 +41,158 @@ class ReadOnlyDict(dict):
     setdefault = __readonly__
     del __readonly__
 
-class map_with_len(object):
-    def __init__(self, func, iter_with_len):
+# class map_with_len(object):
+#     def __init__(self, func, iter_with_len):
+#         self._func = func
+#         self._iter = iter_with_len
+#     def __iter__(self):
+#         return map(self._func, self._iter)
+#     def __len__(self):
+#         return len(self._iter)
+
+# class imap(torch.utils.data.DataLoader):
+#     def __init__(self,func,loader):
+#         try: loader_func = loader._func
+#         except AttributeError: loader_func=lambda x:x
+#         self.__dict__ = loader.__dict__
+#         self._dl = loader
+#         self._func = lambda x: func(loader_func(x))
+#     def __iter__(self):
+#         return map(self._func,self._dl.__iter__())
+# def imap(func,loader):
+#     class _imap(loader.__class__):
+#         def __init__(self,loader):
+#             self.__dict__ = loader.__dict__
+#         def __iter__(self):
+#             return map(func,super().__iter__())
+#     return _imap(loader)
+
+class Wrapper(object):
+    # Special methods are dispatched by what is defined in the class rather
+    # than the instance, so it bypasses __getattr__, as a result for a
+    # wrapper that makes use of any of these methods, we must dynamically dispatch
+    # the special methods at the instance level (using getattr)
+    def __init__(self, obj):
+        self._wrapped_obj = obj
+    def __getattr__(self, attr):
+        if attr =='_wrapped_obj': raise AttributeError
+        if attr == '__dict__': assert False
+        #if attr not in self.__dict__: raise AttributeError
+        return getattr(self._wrapped_obj, attr)
+smethods =    '''__bool__ __int__ __float__ __complex__ __index__
+                 __len__ __getitem__ __setitem__ __delitem__ __contains__
+                 __iter__ __next__ __reversed__
+                 __call__ __enter__ __exit__
+                 __str__ __repr__  __bytes__ __format__
+                 __eq__ __ne__ __lt__ __le__ __gt__ __ge__ __hash__
+                 __add__ __mul__ __sub__ __truediv__ __floordiv__ __mod__
+                 __and__ __or__ __xor__ __invert__ __lshift__ __rshift__
+                 __pos__ __neg__ __abs__ __pow__ __divmod__
+                 __round__ __ceil__ __floor__ __trunc__
+                 __radd__ __rmul__ __rsub__ __rtruediv__ __rfloordiv__ __rmod__
+                 __rand__ __ror__ __rxor__ __rlshift__ __rrshift__
+                 __rpow__ __rdivmod__
+                 __get__ __set__ __delete__
+                 __dir__ __sizeof__'''.split()
+for sm in smethods:
+    setattr(Wrapper, sm, lambda self, *args, sm=sm: Wrapper.__getattr__(self,sm)(*args))
+
+class imap(Wrapper):
+    def __init__(self,func,loader):
+        super().__init__(loader)
         self._func = func
-        self._iter = iter_with_len
     def __iter__(self):
-        return map(self._func, self._iter)
-    def __len__(self):
-        return len(self._iter)
+        return map(self._func,super().__iter__())
 
-class imap(map_with_len): pass
-
-class LoaderTo(torch.utils.data.DataLoader):
-    def __init__(self,loader, device):
-        self.__dict__ = loader.__dict__
-        self._device = device
-
-    def __iter__(self):
-        def minibatch_map(mb):
-            try: return mb.to(self._device)
-            except AttributeError: 
-                return type(mb)(map(lambda x:x.to(self._device),mb))
-        return map(minibatch_map,super().__iter__())
-
-class islice(torch.utils.data.DataLoader):
-    def __init__(self,dataloader,k):
-        """ Wraps a dataloader, but only takes the first k elements with iter,
-            if shuffling is enabled, this may be different from different 
-            calls to iter """
-        self.__dict__= dataloader.__dict__
+class islice(Wrapper):
+    def __init__(self,loader,k):
+        super().__init__(loader)
         self._k = k
     def __iter__(self):
-        return iter(itertools.islice(self,self._k))
+        return iter(itertools.islice(super().__iter__(),self._k))
+
+## Wraps a dataloader and cycles repeatedly
+class icycle(Wrapper):
+    def __init__(self,dataloader):
+        super().__init__(dataloader)
+    def __iter__(self):
+        while True:
+            for data in super().__iter__():
+                yield data
+    def __len__(self):
+        return 10**10
+
+# ## Wraps a dataloader and cycles repeatedly
+# class icycle(object):
+#     def __init__(self,dataloader):
+#         self.dataloader = dataloader
+#     def __iter__(self):
+#         while True:
+#             for data in self.dataloader:
+#                 yield data
+#     def __len__(self):
+#         return 10**10
+
+# class imap(object):
+#     def __init__(self,func,loader):
+#         self.func = func
+#         self.loader = loader
+#     def __iter__(self):
+#         return map(self.func,self.loader.__iter__())
+#     def __getattr__(self,name):
+#         if name==
+#         return self.loader.__getattribute__(name)
+#     def __setattr__(self,name,value):
+#         if name not in ['func','loader']:
+#             self.loader.__setattr__(name,value)
+#         else: super().__setattr__(name,value)
+
+def minibatch_to(device,mb):
+    try: return mb.to(device)
+    except AttributeError: 
+        return type(mb)(minibatch_to(device,elem) for elem in mb)
+import functools
+def LoaderTo(loader,device):
+    return imap(functools.partial(minibatch_to,device),loader)
+
+# class LoaderTo(torch.utils.data.DataLoader):
+#     def __init__(self,loader, device):
+#         self.__dict__ = loader.__dict__
+#         self._device = device
+
+#     def __iter__(self):
+#         def minibatch_map(mb):
+#             try: return mb.to(self._device)
+#             except AttributeError: 
+#                 return type(mb)(minibatch_map(elem) for elem in mb)#map(lambda x:x.to(self._device),mb))
+#         return map(minibatch_map,super().__iter__())
+
+# class islice(object):
+#     def __init__(self,dataloader,k):
+#         """ Wraps a dataloader, but only takes the first k elements with iter,
+#             if shuffling is enabled, this may be different from different 
+#             calls to iter """
+#         self._k = k
+#         self.loader = dataloader
+#     def __iter__(self):
+#         return iter(itertools.islice(self.loader),self._k)
+#     def __getattr__(self,name):
+#         return self.loader.__getattribute__(name)
+#     def __setattr__(self,name,value):
+#         if name not in ['_k','loader']:
+#             self.loader.__setattr__(name,value)
+#         else: super().__setattr__(name,value)
+
+# class islice(torch.utils.data.DataLoader):
+#     def __init__(self,dataloader,k):
+#         """ Wraps a dataloader, but only takes the first k elements with iter,
+#             if shuffling is enabled, this may be different from different 
+#             calls to iter """
+#         self.__dict__= dataloader.__dict__
+#         self.dl = dataloader
+#         self._k = k
+#     def __iter__(self):
+#         return iter(itertools.islice(self.dl,self._k))
 
 def to_device_layer(device):
     def minibatch_map(mb):
@@ -114,23 +236,15 @@ class izip(object):
         return iter(zip(*self.iters))
     def __len__(self):
         return min(len(it) for it in self.iters)
-## Wraps a dataloader and cycles repeatedly
-class icycle(object):
-    def __init__(self,dataloader):
-        self.dataloader = dataloader
-    def __iter__(self):
-        while True:
-            for data in self.dataloader:
-                yield data
-    def __len__(self):
-        return 10**10
+
 
 class Eval(object):
-    def __init__(self, model):
+    def __init__(self, model, on=True):
         self.model = model
+        self.on = on
     def __enter__(self):
         self.training_state = self.model.training
-        self.model.train(False)
+        self.model.train(not self.on)
     def __exit__(self, *args):
         self.model.train(self.training_state)
 
@@ -138,10 +252,13 @@ class FixedNumpySeed(object):
     def __init__(self, seed):
         self.seed = seed
     def __enter__(self):
-        self.rng_state = np.random.get_state()
+        self.np_rng_state = np.random.get_state()
         np.random.seed(self.seed)
+        self.rand_rng_state = random.getstate()
+        random.seed(self.seed)
     def __exit__(self, *args):
-        np.random.set_state(self.rng_state)
+        np.random.set_state(self.np_rng_state) 
+        random.setstate(self.rand_rng_state)
 
 class Expression(nn.Module):
     def __init__(self, func):
@@ -151,14 +268,18 @@ class Expression(nn.Module):
     def forward(self, x):
         return self.func(x)
 
-def cosLr(cycle_length=1,cycle_mult=1):
-    def lrSched(train_frac):
+
+
+def cosLr(num_epochs,cycle_mult=1):
+    if isinstance(num_epochs, collections.abc.Iterable):
+        num_epochs = sum(num_epochs)
+    def lrSched(epoch):
         r = cycle_mult + 1e-8
-        L = 1#cycle_length #base
-        current_cycle = np.floor(np.log(1+(r-1)*train_frac/L)/np.log(r))
+        L = num_epochs#cycle_length #base
+        current_cycle = np.floor(np.log(1+(r-1)*epoch/L)/np.log(r))
         current_cycle_length = L*r**current_cycle
-        cycle_iter = train_frac - L*(r**current_cycle - 1)/(r-1)
-        cos_scale = .5*(1 + np.cos(np.pi*cycle_iter/current_cycle_length))
+        cycle_iter = epoch - L*(r**current_cycle - 1)/(r-1) #(cap lr from going too low)
+        cos_scale = .5*(1 + np.cos(np.pi*cycle_iter/current_cycle_length))+1e-3
         return cos_scale
     return lrSched
 

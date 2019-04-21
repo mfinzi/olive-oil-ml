@@ -66,10 +66,9 @@ class Gan(Trainer):
         real_logits = self.D(x)
         return hinge_loss_D(real_logits,fake_logits)
 
-    def logStuff(self, i, minibatch=None):
+    def logStuff(self, step, minibatch=None):
         """ Handles Logging and any additional needs for subclasses,
             should have no impact on the training """
-        step = i+1 + (self.epoch+1)*len(self.dataloaders['train'])
 
         metrics = {}
         if minibatch is not None:

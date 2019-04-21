@@ -2,11 +2,11 @@ import torch
 import torch.nn as nn
 from torch.nn.utils import spectral_norm
 import numpy as np
+from ...utils.utils import Expression,export,Named
 
+class GanBase(nn.Module,metaclass=Named):
 
-class GanBase(nn.Module):
-
-    def __init__(self,z_dim,img_channels):
+    def __init__(self,z_dim,img_channels,num_classes=None):
         self.z_dim = z_dim
         self.img_channels = img_channels
         super().__init__()

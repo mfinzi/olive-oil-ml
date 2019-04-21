@@ -94,7 +94,7 @@ def get_official_FID(loader,dataset='cifar10'):
 def confusion_from_logits(logits,y_gt):
     bs, num_classes, _, _ = logits.shape
     pred_image = logits.max(1)[1].type_as(y_gt).cpu().data.numpy()
-    print(pred_image)
+    #print(pred_image)
     gt_image = y_gt.cpu().data.numpy()
     return confusion_matrix(pred_image,gt_image,num_classes)
 
@@ -128,3 +128,6 @@ def pixelAcc(confusion_matrix):
 
 def meanAcc(confusion_matrix):
     return np.nanmean(np.diag(confusion_matrix) / np.sum(confusion_matrix, axis=1))
+
+
+# def boundary_mIoU(confusion_matrix,epsilon)

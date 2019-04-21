@@ -2,8 +2,9 @@
 import numpy as np
 import numbers
 import random
-from ..utils.utils import log_uniform,ReadOnlyDict
+from ..utils.utils import log_uniform,ReadOnlyDict,FixedNumpySeed
 from collections import Iterable
+import itertools,operator,functools
 # class SearchVariation(object):
 #     def __init__(self,sample_func):
 #         self.sample_func = sample_func
@@ -35,7 +36,7 @@ class NoGetItLambdaDict(dict):
         value = super().__getitem__(key)
         if callable(value) and value.__name__ == "<lambda>":
             raise LookupError("You shouldn't try to retrieve lambda {} from this dict".format(value))
-        if isinstance(value,Iterable) and not isinstance(value,(str,bytes,dict)):
+        if isinstance(value,Iterable) and not isinstance(value,(str,bytes,dict,tuple)):
             raise LookupError("You shouldn't try to retrieve iterable {} from this dict".format(value))
         return value
         
@@ -65,7 +66,7 @@ def _sample_config(config_spec,cfg_all):
             new_dict,extra_work = _sample_config(v,cfg_all)
             cfg[k] = new_dict
             more_work |= extra_work
-        elif isinstance(v,Iterable) and not isinstance(v,(str,bytes,dict)):
+        elif isinstance(v,Iterable) and not isinstance(v,(str,bytes,dict,tuple)):
             cfg[k] = random.choice(v)
         elif callable(v) and v.__name__ == "<lambda>":
             try:cfg[k] = v(cfg_all)
@@ -75,35 +76,69 @@ def _sample_config(config_spec,cfg_all):
         else: cfg[k] = v
     return cfg, more_work
 
-# def grid_search(config_spec):
-#     """ Generates configs from the a grid search on the config spec.
-#     """
-#     cfg_all = NoGetItLambdaDict(config_spec)
-#     more_work=True
-#     i=0
-#     while more_work:
-#         cfg_all, more_work = _sample_config(cfg_all,cfg_all)
-#         i+=1
-#         if i>10: raise RecursionError("config dependency unresolvable")
-#     return dict(cfg_all)#ReadOnlyDict(cfg_all)
+def flatten(d, parent_key='', sep='/'):
+    """An invertible dictionary flattening operation that does not clobber objs"""
+    items = []
+    for k, v in d.items():
+        new_key = parent_key + sep + k if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
 
-# def _sample_config(config_spec,cfg_all):
-#     cfg = NoGetItLambdaDict()
-#     more_work = False
-#     for k,v in config_spec.items():
-#         if isinstance(v,dict):
-#             new_dict,extra_work = _sample_config(v,cfg_all)
-#             cfg[k] = new_dict
-#             more_work |= extra_work
-#         elif isinstance(v,Iterable) and not isinstance(v,(str,bytes)):
-#             cfg[k] = np.random.choice(v)
-#         elif callable(v) and v.__name__ == "<lambda>":
-#             try:cfg[k] = v(cfg_all)
-#             except (KeyError, LookupError):
-#                 cfg[k] = v # is used isntead of the variable it returns
-#                 more_work = True
-#         else: cfg[k] = v
-#     return cfg, more_work
+def unflatten(d,sep='/'):
+    """Take a dictionary with keys {'k1/k2/k3':v} to {'k1':{'k2':{'k3':v}}}
+        as outputted by flatten """
+    out_dict={}
+    for k,v in d.items():
+        if isinstance(k,str):
+            keys = k.split(sep)
+            dict_to_modify = out_dict
+            for partial_key in keys[:-1]:
+                try: dict_to_modify = dict_to_modify[partial_key]
+                except KeyError:
+                    dict_to_modify[partial_key] = {}
+                    dict_to_modify = dict_to_modify[partial_key]
+                # Base level reached
+            dict_to_modify[keys[-1]] = v
+        else: out_dict[k]=v
+    return out_dict
+
+class grid_iter(object):
+    """ Defines a length which corresponds to one full pass through the grid
+        defined by grid variables in config_spec, but the iterator will continue iterating
+        past that by repeating over the grid variables"""
+    def __init__(self,config_spec,num_elements=None):
+        self.cfg_flat = flatten(config_spec)
+        is_grid_iterable = lambda v: (isinstance(v,Iterable) and not isinstance(v,(str,bytes,dict,tuple)))
+        iterables = sorted({k:v for k,v in self.cfg_flat.items() if is_grid_iterable(v)}.items())
+        if iterables: self.iter_keys,self.iter_vals = zip(*iterables)
+        else: self.iter_keys,self.iter_vals = [],[[]]
+        self.vals = list(itertools.product(*self.iter_vals))
+        with FixedNumpySeed(0): random.shuffle(self.vals)
+        self.num_elements = num_elements if num_elements is not None else len(self)
+    def reset(self):
+        self.i=0
+        self.vals_iter = iter(self.vals)
+    def __iter__(self):
+        self.reset()
+        return self
+    def __next__(self):
+        self.i+=1
+        if self.i > self.num_elements: raise StopIteration
+        if not self.vals: v = []
+        else:
+            try: v = next(self.vals_iter)
+            except StopIteration:
+                self.reset()
+                v = next(self.vals_iter)
+        chosen_iter_params = dict(zip(self.iter_keys,v))
+        self.cfg_flat.update(chosen_iter_params)
+        return sample_config(unflatten(self.cfg_flat))
+    def __len__(self):
+        product = functools.partial(functools.reduce, operator.mul)
+        return product(len(v) for v in self.iter_vals) if self.vals else 1
 
 def flatten_dict(d):
     """ Flattens a dictionary, ignoring outer keys. Only
