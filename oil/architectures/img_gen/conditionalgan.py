@@ -47,7 +47,7 @@ class Generator(GanBase):
         return (torch.LongTensor(n).random_()%self.num_classes).to(self.device)
         
     def sample(self, n=1):
-        return self(self.sample_y(n),self.sample_z(n))
+        return self(self.sample_y(n),self.sample_z(n))[:,:3]
 
 
 class Discriminator(nn.Module):

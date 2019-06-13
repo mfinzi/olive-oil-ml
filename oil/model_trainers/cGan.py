@@ -86,4 +86,4 @@ def simpleGanTrial(strict=False):
 
 if __name__=='__main__':
     Trial = simpleGanTrial(strict=True)
-    Trial({'num_epochs':4*[100,]})
+    Trial({'num_epochs':4*(100,)})

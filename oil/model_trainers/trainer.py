@@ -31,7 +31,7 @@ class Trainer(object):
     def train(self, num_epochs=100):
         """ The main training loop"""
         start_epoch = self.epoch
-        steps_per_epoch = len(self.dataloaders['train'])
+        steps_per_epoch = len(self.dataloaders['train']); step=0
         for self.epoch in tqdm(range(start_epoch+1, start_epoch + num_epochs+1),desc='train'):
             for i, minibatch in enumerate(self.dataloaders['train']):
                 step = i + (self.epoch-1)*steps_per_epoch
