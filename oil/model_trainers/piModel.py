@@ -12,7 +12,7 @@ class PiModel(Classifier):
                      **kwargs):
         super().__init__(*args, **kwargs)
         self.hypers.update({'cons_weight':cons_weight})
-        self.dataloaders['train'] = izip(icycle(self.dataloaders['lab']),self.dataloaders['unlab'])
+        self.dataloaders['train'] = izip(icycle(self.dataloaders['lab']),self.dataloaders['_unlab'])
 
     def unlabLoss(self, x_unlab):
         logits1 = self.model(x_unlab)
@@ -26,9 +26,8 @@ class PiModel(Classifier):
         unlab_loss = self.unlabLoss(x_unlab)*float(self.hypers['cons_weight'])
         return lab_loss + unlab_loss
 
-    def logStuff(self, i, minibatch=None):
-        step = i+1 + (self.epoch+1)*len(self.dataloaders['train'])
+    def logStuff(self, step, minibatch=None):
         if minibatch:
             extra_metrics = {'Unlab_loss(batch)':self.unlabLoss(minibatch[1]).cpu().item()}
             self.logger.add_scalars('metrics',extra_metrics,step)
-        super().logStuff(i, minibatch)
+        super().logStuff(step, minibatch)
