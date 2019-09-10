@@ -63,11 +63,20 @@ def simpleClassifierTrial(strict=False):
             }
         recursively_update(cfg,config)
         trainset = cfg['dataset']('~/datasets/{}/'.format(cfg['dataset']))
-        device = torch.device('cuda')
+        if torch.cuda.is_available():
+            device = torch.device('cuda:0')
+            ngpus = torch.cuda.device_count() # For SGD, the bs AND lr are scaled up
+            cfg['loader_config']['lab_BS']*= ngpus
+            cfg['loader_config']['lr']*= ngpus
+            print("Training with {} GPUs".format(ngpus))
+        else:
+            print("No GPUs found")
+            device = torch.device('cpu')
         fullCNN = torch.nn.Sequential(
             trainset.default_aug_layers(),
             cfg['network'](num_classes=trainset.num_classes,**cfg['net_config']).to(device)
         )
+        fullCNN = torch.nn.DataParallel(fullCNN)
         dataloaders = {}
         dataloaders['train'], dataloaders['dev'] = getLabLoader(trainset,**cfg['loader_config'])
         dataloaders['Train'] = islice(dataloaders['train'],10000//cfg['loader_config']['lab_BS'])
