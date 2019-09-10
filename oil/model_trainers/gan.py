@@ -79,9 +79,9 @@ class Gan(Trainer):
         self.logger.add_scalars('metrics', metrics, step)
         # what if (in case of cycleGAN, there is no G?)
         fake_images = self.G(*self.fixed_input).cpu().data
-        img_grid = vutils.make_grid(fake_images, normalize=True)
+        img_grid = vutils.make_grid(fake_images[:,:3], normalize=True)
         self.logger.add_image('fake_samples', img_grid, step)
-        super().logStuff(i,minibatch)
+        super().logStuff(step,minibatch)
     
     def as_dataloader(self,N=5000,bs=64):
         return GanLoader(self.G,N,bs)

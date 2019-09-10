@@ -109,14 +109,15 @@ class grid_iter(object):
     """ Defines a length which corresponds to one full pass through the grid
         defined by grid variables in config_spec, but the iterator will continue iterating
         past that by repeating over the grid variables"""
-    def __init__(self,config_spec,num_elements=None):
+    def __init__(self,config_spec,num_elements=None,shuffle=True):
         self.cfg_flat = flatten(config_spec)
         is_grid_iterable = lambda v: (isinstance(v,Iterable) and not isinstance(v,(str,bytes,dict,tuple)))
         iterables = sorted({k:v for k,v in self.cfg_flat.items() if is_grid_iterable(v)}.items())
         if iterables: self.iter_keys,self.iter_vals = zip(*iterables)
         else: self.iter_keys,self.iter_vals = [],[[]]
         self.vals = list(itertools.product(*self.iter_vals))
-        with FixedNumpySeed(0): random.shuffle(self.vals)
+        if shuffle:
+            with FixedNumpySeed(0): random.shuffle(self.vals)
         self.num_elements = num_elements if num_elements is not None else len(self)
     def reset(self):
         self.i=0

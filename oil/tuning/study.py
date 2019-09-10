@@ -52,14 +52,14 @@ class Study(object):
             flat_cfgs.append(row,ignore_index=True)
         return flat_cfgs
 
-    def run(self, num_trials=None, max_workers=1, new_config_spec=None):
+    def run(self, num_trials=None, max_workers=1, new_config_spec=None,ordered=True):
         """ runs the study with num_trials and max_workers slurm nodes
             trials are executed in parallel by the slurm nodes, study object
             is updated and saved as results come in """
         if new_config_spec: self.config_spec=new_config_spec
         with self.Executor(max_workers) as executor:
             start_id = len(self.configs)
-            configs = grid_iter(self.config_spec,num_trials)
+            configs = grid_iter(self.config_spec,num_trials,shuffle = not ordered)
             futures = [executor.submit(self.perform_trial,
                         cfg,start_id+i) for i, cfg in enumerate(configs)]
             for j, future in enumerate(tqdm(concurrent.futures.as_completed(futures),

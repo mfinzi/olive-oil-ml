@@ -7,17 +7,19 @@ import numpy as np
 from . import augLayers
 from ..utils.utils import Named
 from . import camvid
-
+from .celeba import CelebA
 class EasyIMGDataset(Dataset,metaclass=Named):
     ignored_index = -100
     class_weights = None
-    def __init__(self,*args,gan_normalize=False,download=True,**kwargs):
+    def __init__(self,*args,gan_normalize=False,flow=False,download=True,**kwargs):
         transform = kwargs.pop('transform',None)
-        if not transform: transform = self.default_transform(gan_normalize)
+        if not transform: transform = self.default_transform(gan_normalize,flow)
         super().__init__(*args,transform=transform,download=download,**kwargs)
     
-    def default_transform(self,gan_normalize=False):
-        if gan_normalize: 
+    def default_transform(self,gan_normalize=False,flow=False):
+        if flow:
+            return transforms.ToTensor()
+        elif gan_normalize: 
             normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         else:
             normalize = transforms.Normalize(self.means, self.stds)
