@@ -51,38 +51,33 @@ from oil.tuning.study import train_trial
 from oil.datasetup.dataloaders import getLabLoader
 from oil.datasetup.datasets import CIFAR10
 from oil.architectures.img_classifiers import layer13s
+from oil.utils.parallel import multigpu_parallelize
 import collections
 
 def simpleClassifierTrial(strict=False):
     def makeTrainer(config):
         cfg = {
             'dataset': CIFAR10,'network':layer13s,'net_config': {},
-            'loader_config': {'amnt_dev':5000,'lab_BS':50, 'pin_memory':True,'num_workers':2},
+            'loader_config': {'amnt_dev':5000,'lab_BS':64, 'pin_memory':True,'num_workers':3},
             'opt_config':{'lr':.1, 'momentum':.9, 'weight_decay':1e-4,'nesterov':True},
-            'num_epochs':100,'trainer_config':{},
+            'num_epochs':100,'trainer_config':{},'parallel':False,
             }
         recursively_update(cfg,config)
         trainset = cfg['dataset']('~/datasets/{}/'.format(cfg['dataset']))
-        if torch.cuda.is_available():
-            device = torch.device('cuda:0')
-            ngpus = torch.cuda.device_count() # For SGD, the bs AND lr are scaled up
-            cfg['loader_config']['lab_BS']*= ngpus
-            cfg['loader_config']['lr']*= ngpus
-            print("Training with {} GPUs".format(ngpus))
-        else:
-            print("No GPUs found")
-            device = torch.device('cpu')
+        device = torch.device('cuda:0')
         fullCNN = torch.nn.Sequential(
             trainset.default_aug_layers(),
-            cfg['network'](num_classes=trainset.num_classes,**cfg['net_config']).to(device)
-        )
-        fullCNN = torch.nn.DataParallel(fullCNN)
+            cfg['network'](num_classes=trainset.num_classes,**cfg['net_config'])
+        ).to(device)
+        if cfg['parallel']: fullCNN = multigpu_parallelize(fullCNN,cfg,scalelr=True)
         dataloaders = {}
         dataloaders['train'], dataloaders['dev'] = getLabLoader(trainset,**cfg['loader_config'])
         dataloaders['Train'] = islice(dataloaders['train'],10000//cfg['loader_config']['lab_BS'])
         if len(dataloaders['dev'])==0:
             testset = cfg['dataset']('~/datasets/{}/'.format(cfg['dataset']),train=False)
-            dataloaders['test'] = DataLoader(testset,batch_size=cfg['loader_config']['lab_BS'],shuffle=False)
+            dataloaders['Test'] = DataLoader(testset,batch_size=cfg['loader_config']['lab_BS'],
+                            shuffle=False,num_workers=cfg['loader_config']['num_workers']//2,
+                            pin_memory=cfg['loader_config']['pin_memory'])
         dataloaders = {k:LoaderTo(v,device) for k,v in dataloaders.items()}
         opt_constr = lambda params: torch.optim.SGD(params, **cfg['opt_config'])
         lr_sched = cosLr(cfg['num_epochs'])
@@ -92,4 +87,4 @@ def simpleClassifierTrial(strict=False):
 
 if __name__=='__main__':
     Trial = simpleClassifierTrial(strict=True)
-    Trial({'num_epochs':100,'loader_config':{'amnt_dev':0}})
+    Trial({'parallel':True,'num_epochs':100,'loader_config':{'amnt_dev':0,'lab_BS':64}})
