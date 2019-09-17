@@ -41,10 +41,6 @@ class ReadOnlyDict(dict):
     setdefault = __readonly__
     del __readonly__
 
-class MyDataParallel(nn.DataParallel):
-    def __getattr__(self, name):
-        return getattr(self.module, name)
-
 # class map_with_len(object):
 #     def __init__(self, func, iter_with_len):
 #         self._func = func

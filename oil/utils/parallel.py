@@ -18,7 +18,7 @@ def multigpu_parallelize(model,cfg,scalelr=False):
     if scalelr: cfg['opt_config']['lr']*= ngpus
     print("Discovered and training with {} GPUs".format(ngpus))
     torch.distributed.init_process_group(backend="nccl")
-    DDP_model = nn.parallel.DistributedDataParallel(model,find_unused_parameters=True)
+    DDP_model = nn.parallel.DistributedDataParallel(model)#,find_unused_parameters=True) #for 1.0.0
     return DDP_model
 
 def _check_balance(device_ids):
