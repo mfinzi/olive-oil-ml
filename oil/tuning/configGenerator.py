@@ -3,7 +3,7 @@ import numpy as np
 import numbers
 import random
 from ..utils.utils import log_uniform,ReadOnlyDict,FixedNumpySeed
-from collections import Iterable
+from collections import Iterable,defaultdict
 import itertools,operator,functools
 # class SearchVariation(object):
 #     def __init__(self,sample_func):
@@ -56,7 +56,9 @@ def sample_config(config_spec):
         i+=1
         if i>10: 
             raise RecursionError("config dependency unresolvable with {}".format(cfg_all))
-    return cfg_all
+    out = defaultdict(dict)
+    out.update(cfg_all)
+    return out
 
 def _sample_config(config_spec,cfg_all):
     cfg = {}
@@ -119,11 +121,10 @@ class grid_iter(object):
         if shuffle:
             with FixedNumpySeed(0): random.shuffle(self.vals)
         self.num_elements = num_elements if num_elements is not None else len(self)
-    def reset(self):
+
+    def __iter__(self):
         self.i=0
         self.vals_iter = iter(self.vals)
-    def __iter__(self):
-        self.reset()
         return self
     def __next__(self):
         self.i+=1
@@ -132,7 +133,7 @@ class grid_iter(object):
         else:
             try: v = next(self.vals_iter)
             except StopIteration:
-                self.reset()
+                self.vals_iter = iter(self.vals)
                 v = next(self.vals_iter)
         chosen_iter_params = dict(zip(self.iter_keys,v))
         self.cfg_flat.update(chosen_iter_params)

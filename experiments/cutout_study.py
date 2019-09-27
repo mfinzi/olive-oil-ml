@@ -9,14 +9,14 @@ from oil.datasetup.datasets import CIFAR10,CIFAR100
 from oil.model_trainers.classifier import Classifier
 from oil.datasetup.dataloaders import getLabLoader
 from oil.datasetup.augLayers import RandomErasing
-from oil.architectures.img_classifiers import WideResNet28x10
+from oil.architectures.img_classifiers import WideResNet28x10,layer13s
 from oil.tuning.study import Study, train_trial
 from oil.tuning.configGenerator import uniform,logUniform,sample_config
 #import oil.augLayers as augLayers
 
 config_spec = {
     'dataset': [CIFAR10,CIFAR100],
-    'network': WideResNet28x10,'net_config': {},
+    'network': layer13s,'net_config': {},
     'loader_config': {'amnt_dev':5000,'lab_BS':64},
     'opt_config':{'lr':.2, 'momentum':.9, 'weight_decay':1e-4},
     'num_epochs':200,

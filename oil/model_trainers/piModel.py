@@ -8,7 +8,7 @@ from ..utils.utils import Eval, izip, icycle
 #from .schedules import sigmoidConsRamp
 
 class PiModel(Classifier):
-    def __init__(self, *args, cons_weight=200.,
+    def __init__(self, *args, cons_weight=15,
                      **kwargs):
         super().__init__(*args, **kwargs)
         self.hypers.update({'cons_weight':cons_weight})
@@ -22,8 +22,8 @@ class PiModel(Classifier):
 
     def loss(self, minibatch):
         (x_lab, y_lab), x_unlab = minibatch
-        lab_loss = nn.CrossEntropyLoss()(self.model(x_lab),y_lab)
         unlab_loss = self.unlabLoss(x_unlab)*float(self.hypers['cons_weight'])
+        lab_loss = nn.CrossEntropyLoss()(self.model(x_lab),y_lab)
         return lab_loss + unlab_loss
 
     def logStuff(self, step, minibatch=None):

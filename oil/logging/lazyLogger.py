@@ -46,7 +46,7 @@ class NothingWriter(object):
     = add_text = add_onnx_graph = add_graph = add_embedding \
     = add_pr_curve_raw = close = lambda *args,**kwargs:None
     def __init__(self,*args,**kwargs):
-        return super().__init__(*args,**kwargs)
+        return super().__init__()
 try: 
     import tensorboardX
     MaybeTbWriter = tensorboardX.SummaryWriter

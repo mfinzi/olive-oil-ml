@@ -16,6 +16,7 @@ class Trainer(object):
 
         # Setup model, optimizer, and dataloaders
         self.model = model
+
         self.optimizer = opt_constr(self.model.parameters())
         self.lr_schedulers = [optim.lr_scheduler.LambdaLR(self.optimizer,lr_sched)]
         self.dataloaders = dataloaders # A dictionary of dataloaders
@@ -24,6 +25,7 @@ class Trainer(object):
         self.logger = LazyLogger(log_dir, log_suffix, **log_args)
         #self.logger.add_text('ModelSpec','model: {}'.format(model))
         self.hypers = {}
+        
 
     def train_to(self, final_epoch=100):
         return self.train(final_epoch-self.epoch)
@@ -35,10 +37,10 @@ class Trainer(object):
         for self.epoch in tqdm(range(start_epoch+1, start_epoch + num_epochs+1),desc='train'):
             for i, minibatch in enumerate(self.dataloaders['train']):
                 step = i + (self.epoch-1)*steps_per_epoch
-                [sched.step(step/steps_per_epoch) for sched in self.lr_schedulers]
                 with self.logger as do_log:
                     if do_log: self.logStuff(step, minibatch)
                 self.step(minibatch)
+                [sched.step(step/steps_per_epoch) for sched in self.lr_schedulers]
         self.logStuff(step)
         return self.logger.emas()
 
