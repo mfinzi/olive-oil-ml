@@ -59,15 +59,16 @@ def simpleClassifierTrial(strict=False):
             'dataset': CIFAR10,'network':layer13s,'net_config': {},
             'loader_config': {'amnt_dev':5000,'lab_BS':50, 'pin_memory':True,'num_workers':2},
             'opt_config':{'lr':.1, 'momentum':.9, 'weight_decay':1e-4,'nesterov':True},
-            'num_epochs':100,'trainer_config':{},
+            'num_epochs':100,'trainer_config':{},'parallel':False,
             }
         recursively_update(cfg,config)
         trainset = cfg['dataset']('~/datasets/{}/'.format(cfg['dataset']))
-        device = torch.device('cuda')
+        device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         fullCNN = torch.nn.Sequential(
             trainset.default_aug_layers(),
             cfg['network'](num_classes=trainset.num_classes,**cfg['net_config']).to(device)
         )
+        if cfg['parallel']: fullCNN = multigpu_parallelize(fullCNN,cfg)
         dataloaders = {}
         dataloaders['train'], dataloaders['dev'] = getLabLoader(trainset,**cfg['loader_config'])
         dataloaders['Train'] = islice(dataloaders['train'],10000//cfg['loader_config']['lab_BS'])
