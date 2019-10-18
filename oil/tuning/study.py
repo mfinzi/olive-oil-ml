@@ -12,6 +12,7 @@ from .slurmExecutor import SlurmExecutor, LocalExecutor
 from ..logging.lazyLogger import LazyLogger
 from ..utils.mytqdm import tqdm
 import os
+import numpy as np
 from collections.abc import Iterable
 import __main__ as main
 
@@ -52,7 +53,7 @@ class Study(object):
             flat_cfgs.append(row,ignore_index=True)
         return flat_cfgs
 
-    def run(self, num_trials=None, max_workers=1, new_config_spec=None,ordered=True):
+    def run(self, num_trials=None, max_workers=None, new_config_spec=None,ordered=True):
         """ runs the study with num_trials and max_workers slurm nodes
             trials are executed in parallel by the slurm nodes, study object
             is updated and saved as results come in """
@@ -72,6 +73,7 @@ class Study(object):
                 with pd.option_context('display.expand_frame_repr',False):
                     print(self.configs.iloc[-1:])
                     print(self.outcomes.iloc[-1:])
+                    self.print_best_sofar()
                 save_loc = self.logger.save_object(self,'study.s')
         return save_loc
         # we could pass in a function that outputs the generator, and that function
@@ -84,6 +86,22 @@ class Study(object):
         """ Returns the subset of columns from configs that is not all the same"""
         columns_that_vary = self.configs.apply(pd.Series.nunique,axis=0)!=1
         return self.configs.T[columns_that_vary].T
+
+    #TODO: add argument for objective when multiple possible exist, compute for each dataset?
+    def print_best_sofar(self):
+        validation_set = self.outcomes.columns.str.contains('Dev')
+        if not np.any(validation_set):
+            validation_set = self.outcomes.columns.str.contains('Test')
+        if not np.any(validation_set):
+            return
+        objective = self.outcomes.columns[validation_set][0]
+        imax = np.argmax(self.outcomes[objective].to_numpy())
+        print("Best So Far:")
+        print("=====================================")
+        if not self.covariates().empty:
+            print(self.covariates().iloc[imax:imax+1])
+        print(self.outcomes.iloc[imax:imax+1])
+        print("=====================================")
 
 # Plan for pruning support (e.g. median rule, hyperband)
         # Support for trials that train in segments via generators
@@ -103,13 +121,15 @@ class Study(object):
         # sample_config could be random (aka prior), but may have state dependent
         # on (partial) outcome
 
-def train_trial(make_trainer,strict=False):
-    """ a common trainer trial use case: make_trainer, train, return cfg and emas"""
-    def _perform_trial(cfg,i=None):
+class train_trial(object):
+    def __init__(self,make_trainer,strict=False):
+        self.make_trainer = make_trainer
+        self.strict=strict
+    def __call__(self,cfg,i=None):
         try:
             if i is not None:
                 cfg['trainer_config']['log_suffix'] = 'trial{}/'.format(i)
-            trainer = make_trainer(cfg)
+            trainer = self.make_trainer(cfg)
             try: cfg['params(M)'] = sum(p.numel() for p in trainer.model.parameters() if p.requires_grad)/10**6
             except AttributeError: pass
             trainer.logger.add_scalars('config',flatten_dict(cfg))
@@ -118,8 +138,39 @@ def train_trial(make_trainer,strict=False):
                 outcome = trainer.train(portion)
                 cfg['saved_at'] = trainer.logger.save_object(trainer,
                                     suffix='checkpoints/c{}.trainer'.format(trainer.epoch))
+            if os.environ.copy().get("WORLD_SIZE",0)!=0:
+                torch.cuda.empty_cache()
+                torch.distributed.destroy_process_group()
             return cfg, outcome
         except Exception as e:
+            if os.environ.copy().get("WORLD_SIZE",0)!=0:
+                torch.cuda.empty_cache()
+                torch.distributed.destroy_process_group()
             if strict: raise
             else: return cfg, e
-    return _perform_trial
+
+
+# def train_trial(make_trainer,strict=False):
+#     """ a common trainer trial use case: make_trainer, train, return cfg and emas"""
+#     def _perform_trial(cfg,i=None):
+#         try:
+#             if i is not None:
+#                 cfg['trainer_config']['log_suffix'] = 'trial{}/'.format(i)
+#             trainer = make_trainer(cfg)
+#             try: cfg['params(M)'] = sum(p.numel() for p in trainer.model.parameters() if p.requires_grad)/10**6
+#             except AttributeError: pass
+#             trainer.logger.add_scalars('config',flatten_dict(cfg))
+#             epochs = cfg['num_epochs'] if isinstance(cfg['num_epochs'],Iterable) else [cfg['num_epochs']]
+#             for portion in epochs:
+#                 outcome = trainer.train(portion)
+#                 cfg['saved_at'] = trainer.logger.save_object(trainer,
+#                                     suffix='checkpoints/c{}.trainer'.format(trainer.epoch))
+#             torch.cuda.empty_cache()
+#             torch.distributed.destroy_process_group()
+#             return cfg, outcome
+#         except Exception as e:
+#             torch.cuda.empty_cache()
+#             torch.distributed.destroy_process_group()
+#             if strict: raise
+#             else: return cfg, e
+#     return _perform_trial

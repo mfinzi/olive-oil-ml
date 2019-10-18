@@ -257,7 +257,7 @@ class FixedNumpySeed(object):
         self.rand_rng_state = random.getstate()
         random.seed(self.seed)
     def __exit__(self, *args):
-        np.random.set_state(self.np_rng_state) 
+        np.random.set_state(self.np_rng_state)
         random.setstate(self.rand_rng_state)
 
 class Expression(nn.Module):
@@ -279,14 +279,14 @@ def cosLr(num_epochs,cycle_mult=1):
         current_cycle = np.floor(np.log(1+(r-1)*epoch/L)/np.log(r))
         current_cycle_length = L*r**current_cycle
         cycle_iter = epoch - L*(r**current_cycle - 1)/(r-1) #(cap lr from going too low)
-        cos_scale = .5*(1 + np.cos(np.pi*cycle_iter/current_cycle_length))+1e-3
+        cos_scale = max(.5*(1 + np.cos(np.pi*cycle_iter/current_cycle_length)),1e-3)
         return cos_scale
     return lrSched
 
 def recursively_update(d, u):
     for k, v in u.items():
         if isinstance(v, dict):
-            d[k] = recursively_update(d.get(k, {}), v)
+            d[k] = recursively_update(d.get(k, type(v)()), v)
         else:
             d[k] = v
     return d

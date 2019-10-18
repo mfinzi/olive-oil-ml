@@ -9,6 +9,8 @@ import subprocess
 from concurrent import futures
 from functools import partial
 import itertools
+import torch
+from oil.tuning.localGpuExecutor import LocalGpuExecutor
 
 def kwargs_to_list(kwargs):
     return ["%s%s"%(('--'+k+'=',v) if len(k)>1
@@ -71,13 +73,21 @@ def _chain_from_iterable_of_lists(iterable):
         while element:
             yield element.pop()
 
+def LocalExecutor(max_workers=None):
+    if max_workers==1 or torch.cuda.device_count()<=1:
+        return futures.ThreadPoolExecutor(max_workers=1)
+    else:
+        return LocalGpuExecutor(max_workers)
 
-class LocalExecutor(futures.ThreadPoolExecutor):
-    """Wraps ProcessPoolExecutor but distributes local gpus to the
-        processes #TODO: restrict gpu allocation. At the moment restricts
-        to sequential (single core) execution."""
-    def __init__(self,max_workers,*args,**kwargs):
-        super().__init__(max_workers=1,*args,**kwargs)
+# #LocalExecutor = LocalGpuExecutor
+# class LocalExecutor(futures.ThreadPoolExecutor):
+#     """Wraps ProcessPoolExecutor but distributes local gpus to the
+#         processes #TODO: restrict gpu allocation. At the moment restricts
+#         to sequential (single core and gpu) execution."""
+#     def __init__(self,max_workers,*args,**kwargs):
+#         super().__init__(max_workers=1,*args,**kwargs)
+#         #os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
+#         #os.environ["CUDA_VISIBLE_DEVICES"]="0"
         
 
 if __name__=='__main__':

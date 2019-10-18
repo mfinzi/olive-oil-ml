@@ -12,7 +12,7 @@ from torch.cuda._utils import _get_device_index
 
 
 def try_multigpu_parallelize(model,cfg,scalelr=False):
-    if os.environ.copy().get("WORLD_SIZE",0)>0:
+    if os.environ.copy().get("WORLD_SIZE",0)!=0:
         assert torch.cuda.is_available(), "No GPUs found"
         ngpus = torch.cuda.device_count() # For Adam, only the bs is scaled up
         cfg['loader_config']['lab_BS']*= ngpus

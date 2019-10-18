@@ -53,43 +53,44 @@ from oil.datasetup.dataloaders import getLabLoader
 from oil.datasetup.datasets import CIFAR10
 from oil.architectures.img_classifiers import layer13s
 from oil.utils.parallel import try_multigpu_parallelize
+from collections import Iterable,defaultdict
 import collections
 
-def simpleClassifierTrial(strict=False):
-    def makeTrainer(config):
-        cfg = {
-            'dataset': CIFAR10,'network':layer13s,'net_config': {},
-            'loader_config': {'amnt_dev':5000,'lab_BS':64, 'pin_memory':True,'num_workers':3},
-            'opt_config':{'optim':SGD}, 
-            'num_epochs':100,'trainer_config':{},
-            }
-        if config['opt_config'].get('optim',SGD)==SGD: cfg['opt_config'].update({'lr':.1, 'momentum':.9, 'weight_decay':1e-4,'nesterov':True})
-        recursively_update(cfg,config)
-        trainset = cfg['dataset']('~/datasets/{}/'.format(cfg['dataset']))
-        device = torch.device('cuda:0')
-        fullCNN = torch.nn.Sequential(
-            trainset.default_aug_layers(),
-            cfg['network'](num_classes=trainset.num_classes,**cfg['net_config'])
-        ).to(device)
-        fullCNN = try_multigpu_parallelize(fullCNN,cfg,scalelr=cfg['opt_config']['optim']==SGD)
-
-        dataloaders = {}
-        dataloaders['train'], dataloaders['dev'] = getLabLoader(trainset,**cfg['loader_config'])
-        dataloaders['Train'] = islice(dataloaders['train'],10000//cfg['loader_config']['lab_BS'])
-        if len(dataloaders['dev'])==0:
-            testset = cfg['dataset']('~/datasets/{}/'.format(cfg['dataset']),train=False)
-            dataloaders['Test'] = DataLoader(testset,batch_size=cfg['loader_config']['lab_BS'],
-                            shuffle=False,num_workers=cfg['loader_config']['num_workers']//2,
-                            pin_memory=cfg['loader_config']['pin_memory'])
-        dataloaders = {k:LoaderTo(v,device) for k,v in dataloaders.items()}
-
-        optim = cfg['opt_config'].pop('optim')
-        opt_constr = lambda params: optim(params, **cfg['opt_config'])
-        lr_sched = cosLr(cfg['num_epochs'])
-        return Classifier(fullCNN,dataloaders,opt_constr,lr_sched,**cfg['trainer_config'])
-    return train_trial(makeTrainer,strict)
+def makeTrainer(config):
+    cfg = {
+        'dataset': CIFAR10,'network':layer13s,'net_config': {},
+        'loader_config': {'amnt_dev':5000,'lab_BS':64, 'pin_memory':True,'num_workers':3},
+        'opt_config':{'optim':SGD}, 
+        'num_epochs':100,'trainer_config':{},
+        }
+    if config.get('opt_config',{}).get('optim',SGD)==SGD: cfg['opt_config'].update({'lr':.1, 'momentum':.9, 'weight_decay':1e-4,'nesterov':True})
+    recursively_update(cfg,config)
     
+    trainset = cfg['dataset']('~/datasets/{}/'.format(cfg['dataset']))
+    device = torch.device('cuda:0')
+    fullCNN = torch.nn.Sequential(
+        trainset.default_aug_layers(),
+        cfg['network'](num_classes=trainset.num_classes,**cfg['net_config'])
+    ).to(device)
+    fullCNN = try_multigpu_parallelize(fullCNN,cfg,scalelr=False)#cfg['opt_config']['optim']==SGD)
+
+    dataloaders = {}
+    dataloaders['train'], dataloaders['Dev'] = getLabLoader(trainset,**cfg['loader_config'])
+    dataloaders['Train'] = islice(dataloaders['train'],10000//cfg['loader_config']['lab_BS'])
+    if len(dataloaders['Dev'])==0:
+        testset = cfg['dataset']('~/datasets/{}/'.format(cfg['dataset']),train=False)
+        dataloaders['Test'] = DataLoader(testset,batch_size=cfg['loader_config']['lab_BS'],
+                        shuffle=False,num_workers=cfg['loader_config']['num_workers']//2,
+                        pin_memory=cfg['loader_config']['pin_memory'])
+    dataloaders = {k:LoaderTo(v,device) for k,v in dataloaders.items()}
+
+    optim = cfg['opt_config'].pop('optim')
+    opt_constr = lambda params: optim(params, **cfg['opt_config'])
+    lr_sched = cosLr(cfg['num_epochs'])
+    return Classifier(fullCNN,dataloaders,opt_constr,lr_sched,**cfg['trainer_config'])
+
+simpleClassifierTrial = train_trial(makeTrainer)
 
 if __name__=='__main__':
-    Trial = simpleClassifierTrial(strict=True)
+    Trial = simpleClassifierTrial
     Trial({'num_epochs':100,'loader_config':{'amnt_dev':0,'lab_BS':64}})
