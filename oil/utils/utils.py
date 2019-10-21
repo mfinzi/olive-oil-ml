@@ -13,6 +13,7 @@ import torch.utils.data
 import collections
 import random
 
+
 class Named(type):
     def __str__(self):
         return self.__name__
@@ -423,3 +424,13 @@ def full_load(reconstructible):
     else:
         model = reconstructible.reconstructor(rebuildable=False)
         model.load_state(model.get_state())
+
+import sys
+import select
+def maybe_get_input():
+    """ Returns None if no enter has been pressed, otherwise the line"""
+    i,o,e = select.select([sys.stdin],[],[],0.0001)
+    for s in i:
+        if s == sys.stdin:
+            return sys.stdin.readline()
+    return None

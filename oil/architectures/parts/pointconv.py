@@ -155,6 +155,32 @@ def subsample_and_neighbors(npoint,nsample,xyz):
     neighbor_idx = knn_point(nsample, xyz, new_xyz)
     return new_xyz,neighbor_idx
 
+class FarthestSubsample(nn.Module):
+    def __init__(self,points):
+        super().__init__()
+        self.npoints = points
+        self.subsample_lookup = {}
+    def forward(self,x):
+        coords,values = x
+        key = pthash(coords)
+        if key not in self.subsample_lookup:
+            #print("Cache miss")
+            self.subsample_lookup[key] = farthest_point_sample(coords, self.npoints)
+        fps_idx = self.subsample_neighbor_lookup[key]
+        new_coords = index_points(coords,fps_idx)
+        new_values = index_points(values,fps_idx)
+        return new_coords,new_values
+        
+def subsample(npoint,nsample,xyz):
+    B, N, C = xyz.shape
+    S = npoint
+    if N==S:
+        new_xyz = xyz
+    else:
+        fps_idx = farthest_point_sample(xyz, npoint) # [B, npoint, C]
+        new_xyz = index_points(xyz, fps_idx) # 
+    return new_xyz
+
 def compute_density(xyz, bandwidth):
     '''
     xyz: input points position data, [B, N, C]
@@ -280,11 +306,69 @@ class PointConvSetAbstraction(nn.Module):
         grouped_xyz = neighbor_xyz_offsets.permute(0, 3, 2, 1)
         weights = self.weightnet(grouped_xyz)
         new_points = torch.matmul(input=new_points.permute(0, 3, 1, 2), other = weights.permute(0, 3, 2, 1)).view(B, self.npoint, -1)
-        new_points = self.linear(new_points)
-        new_points = self.bn_linear(new_points.permute(0, 2, 1))
-        new_points = F.relu(new_points)
+        new_points = self.linear(new_points).permute(0,2,1)
+        #new_points = self.bn_linear(new_points)
+        #new_points = F.relu(new_points)
         new_xyz = new_xyz.permute(0, 2, 1)
         return (new_xyz, new_points)
+
+@export
+class both(nn.Module):
+    def __init__(self,module1,module2):
+        super().__init__()
+        self.module1 = module1
+        self.module2 = module2
+    def forward(self,inp):
+        x,z = inp
+        return self.module1(x),self.module2(z)
+
+class Pass(nn.Module):
+    def __init__(self,module):
+        super().__init__()
+        self.module = module
+    def forward(self,x):
+        c,y = x
+        return c, self.module(y)
+
+def PointConv(in_channels,out_channels,nbhd=9,npoint=32**2,bandwidth=0.1):
+    mlp_channels = [out_channels//4,out_channels//2,out_channels]
+    # return PointConvDensitySetAbstraction(
+    #         npoint=npoint, nsample=nbhd, in_channel=in_channels,
+    #         mlp=mlp_channels, bandwidth = bandwidth, group_all=False,xyz_dim=2)
+    return PointConvSetAbstraction(
+            npoint=npoint, nsample=nbhd, in_channel=in_channels,
+            mlp=mlp_channels, group_all=False,xyz_dim=2)
+
+@export
+def pConvBNrelu(in_channels,out_channels,**kwargs):
+    return nn.Sequential(
+        PointConv(in_channels,out_channels,**kwargs),
+        Pass(nn.BatchNorm1d(out_channels)),
+        Pass(nn.ReLU())
+    )
+
+@export
+class pBottleneck(nn.Module):
+    def __init__(self,in_channels,out_channels,ksize=3,drop_rate=0,gn=False,**kwargs):
+        super().__init__()
+        self.out_channels = out_channels
+        norm_layer = (lambda c: nn.GroupNorm(c//16,c)) if gn else nn.BatchNorm2d
+        self.net = nn.Sequential(
+            Pass(norm_layer(in_channels)),
+            Pass(nn.ReLU()),
+            Pass(conv2d(in_channels,out_channels,1)),
+            Pass(norm_layer(in_channels)),
+            Pass(nn.ReLU()),
+            PointConv(*args,**kwargs),
+            Pass(norm_layer(in_channels)),
+            Pass(nn.ReLU()),
+            Pass(conv2d(in_channels,out_channels,1)),
+        )
+
+    def forward(self,x):
+        values,coords = x
+        new_values,new_coords  = self.net(x)
+        return values[:,:self.out_channels] + new_values, new_coords
 
 # @export
 # class PointConvDensitySetAbstraction(nn.Module):

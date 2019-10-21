@@ -3,7 +3,8 @@ from torch.autograd import Variable
 from torch.nn import Parameter
 import torch.nn.functional as F
 import torch.nn as nn
-import torch.nn.functional as F
+import torch.nn.init as init
+from oil.architectures.parts import PointConvSetAbstraction#,PointConvDensitySetAbstraction
 import numpy as np
 from torch.nn.utils import weight_norm
 import math
@@ -83,8 +84,6 @@ class RestrictedSelfAttention(nn.Module):
         attended_vals = fold_heads_outof_batchdim(folded_attended_vals,self.num_heads)  #(nh*bs,n,d//nh) ->(bs,n,d)
         return self.WO(attended_vals)
 
-
-
 # Plan:
 # 1) implement standalone self-attention conv replacement layer, verify that it works on cifar10
 #       - (investigate replacing bottleneck block with a transformer block (w/ FFN)) #2 relus vs 1
@@ -152,6 +151,75 @@ class AttConvReplacement(nn.Module):
         # (bs,n,c) - > (bs,c,h,w)
         return self.mha(X_as_points,P).permute(0,2,1).view(X.shape)
 
+class PositionOnlyAtt(nn.Module):
+    def __init__(self, ch, ksize):
+        super().__init__()
+        self.nbhd_extractor = square_nbhd_extractor(ksize)
+        self.position_network = nn.Sequential(nn.Linear(2,ch),nn.ReLU(),nn.Linear(ch,ch))
+    def forward(self,x):
+         # assumes x is an image with shape (bs,h,w,c)
+        bs,c,h,w = x.shape                                              # (1,h*w,2)
+        coords = torch.stack(torch.meshgrid([torch.linspace(-3,3,h),torch.linspace(-3,3,w)]),dim=-1).view(h*w,2).unsqueeze(0)
+        relative_positional_enc = self.nbhd_extractor(coords) - coords.unsqueeze(2) #(p'-p), (1,h*w,r,2)
+        P = self.position_network(relative_positional_enc.cuda()) # (1,h*w,r,2) -> (1,h*w,r,nh)
+        weighting = fold_heads_into_batchdim(torch.softmax(P,axis=2).repeat(bs,1,1,1),c).squeeze(-1)#(bs,n,r,c)->(bs*c,n,r)
+        X_as_points = x.permute(0,2,3,1).view(bs,h*w,c) #(bs,c,h,w) -> (bs,h*w,c)
+        V = fold_heads_into_batchdim(self.nbhd_extractor(X_as_points)).squeeze(-1)  # (bs,n,c) -> (bs,n,r,c) -> (bs*c,n,r)
+        # (bs*c,n,r)*(bs*c,n,r) -> (bs,n,1,d) -> (bs,n,d)
+        return fold_heads_outof_batchdim((weighting*V).sum(-1).unsqueeze(-1),c).permute(0,2,1).view(x.shape)
+
+class AttentionConv(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, groups=1, bias=False):
+        super(AttentionConv, self).__init__()
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        self.groups = groups
+
+        assert self.out_channels % self.groups == 0, "out_channels should be divided by groups. (example: out_channels: 40, groups: 4)"
+
+        self.rel_h = nn.Parameter(torch.randn(out_channels // 2, 1, 1, kernel_size, 1), requires_grad=True)
+        self.rel_w = nn.Parameter(torch.randn(out_channels // 2, 1, 1, 1, kernel_size), requires_grad=True)
+
+        self.key_conv = nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=bias)
+        self.query_conv = nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=bias)
+        self.value_conv = nn.Conv2d(in_channels, out_channels, kernel_size=1, bias=bias)
+
+        self.reset_parameters()
+
+    def forward(self, x):
+        batch, channels, height, width = x.size()
+
+        padded_x = F.pad(x, [self.padding, self.padding, self.padding, self.padding])
+        q_out = self.query_conv(x)
+        k_out = self.key_conv(padded_x)
+        v_out = self.value_conv(padded_x)
+
+        k_out = k_out.unfold(2, self.kernel_size, self.stride).unfold(3, self.kernel_size, self.stride)
+        v_out = v_out.unfold(2, self.kernel_size, self.stride).unfold(3, self.kernel_size, self.stride)
+
+        v_out_h, v_out_w = v_out.split(self.out_channels // 2, dim=1)
+        v_out = torch.cat((v_out_h + self.rel_h, v_out_w + self.rel_w), dim=1)
+
+        k_out = k_out.contiguous().view(batch, self.groups, self.out_channels // self.groups, height, width, -1)
+        v_out = v_out.contiguous().view(batch, self.groups, self.out_channels // self.groups, height, width, -1)
+
+        q_out = q_out.view(batch, self.groups, self.out_channels // self.groups, height, width, 1)
+
+        out = q_out * k_out
+        out = F.softmax(out, dim=-1)
+        out = torch.einsum('bnchwk,bnchwk -> bnchw', out, v_out).view(batch, -1, height, width)
+
+        return out
+
+    def reset_parameters(self):
+        init.kaiming_normal_(self.key_conv.weight, mode='fan_out', nonlinearity='relu')
+        init.kaiming_normal_(self.value_conv.weight, mode='fan_out', nonlinearity='relu')
+        init.kaiming_normal_(self.query_conv.weight, mode='fan_out', nonlinearity='relu')
+
+        init.normal_(self.rel_h, 0, 1)
+        init.normal_(self.rel_w, 0, 1)
 
 @export
 class AttResBlock(nn.Module):
@@ -161,11 +229,11 @@ class AttResBlock(nn.Module):
         self.net = nn.Sequential(
             norm_layer(k),
             nn.ReLU(),
-            AttConvReplacement(k,ksize,num_heads),
-            nn.Dropout(p=drop_rate),
+            conv2d(k,k,1),
             norm_layer(k),
             nn.ReLU(),
-            AttConvReplacement(k,ksize,num_heads),
+            AttentionConv(k,k,kernel_size=ksize, padding=ksize//2, groups=8),#conv2d(k,k,3),#AttConvReplacement(k,ksize,num_heads),
+            nn.Dropout(p=drop_rate),
         )
 
     def forward(self,x):
@@ -181,12 +249,12 @@ class layer13a(nn.Module,metaclass=Named):
         self.num_classes = num_classes
         self.net = nn.Sequential(
             conv2d(3,k,1),#AttConvReplacement(3,k,ksize),
-            *[AttResBlock(k,ksize,num_heads=num_heads) for i in range(4)],
+            *[AttResBlock(k,ksize,num_heads=num_heads) for i in range(3)],
             nn.AvgPool2d(2),
             conv2d(k,2*k,1),
-            *[AttResBlock(2*k,ksize,num_heads=num_heads) for i in range(4)],
+            *[AttResBlock(2*k,ksize,num_heads=num_heads) for i in range(3)],
             nn.AvgPool2d(2),
-            *[AttResBlock(2*k,ksize,num_heads=num_heads) for i in range(4)],
+            *[AttResBlock(2*k,ksize,num_heads=num_heads) for i in range(3)],
             Expression(lambda u:u.mean(-1).mean(-1)),
             nn.Linear(2*k,num_classes)
         )
@@ -243,10 +311,67 @@ class layer13at(nn.Module,metaclass=Named):
     def forward(self,x):
         return self.net(x)
 
+def PointConv(in_channels,out_channels,nbhd=9,npoint=32**2,bandwidth=0.1):
+    mlp_channels = [out_channels//4,out_channels//2,out_channels]
+    # return PointConvDensitySetAbstraction(
+    #         npoint=npoint, nsample=nbhd, in_channel=in_channels,
+    #         mlp=mlp_channels, bandwidth = bandwidth, group_all=False,xyz_dim=2)
+    return PointConvSetAbstraction(
+            npoint=npoint, nsample=nbhd, in_channel=in_channels,
+            mlp=mlp_channels, group_all=False,xyz_dim=2)
+
+def logspace(a,b,k):
+    return np.exp(np.linspace(np.log(a),np.log(b),k))
+
+@export
+class layer13pc(nn.Module,metaclass=Named):
+    """
+    pointconvnet
+    """
+    def __init__(self, num_classes=10,k=64,ksize=3,num_layers=4):
+        super().__init__()
+        self.num_classes = num_classes
+        nbhd = int(ksize**2)
+        points = np.round(logspace(32**2,4**2,num_layers+1)).astype(int)
+        chs = np.round(logspace(k,4*k,num_layers+1)).astype(int)
+        self.initial_conv = conv2d(3,k,1)
+        self.net = nn.Sequential(
+            *[PointConv(chs[i],chs[i+1],npoint=points[i+1],nbhd=nbhd) for i in range(num_layers)],
+            Expression(lambda u:u[-1].mean(-1)),
+            nn.Linear(chs[-1],num_classes)
+        )
+
+    def forward(self,x):
+        bs,c,h,w = x.shape
+        coords = torch.stack(torch.meshgrid([torch.linspace(-1,1,h),torch.linspace(-1,1,w)]),dim=-1).view(h*w,2).unsqueeze(0).permute(0,2,1).repeat(bs,1,1).to(x.device)
+        inp_as_points = self.initial_conv(x).view(bs,-1,h*w)
+        return self.net((coords,inp_as_points))
 
 
 
+@export
+class layer13pcs(nn.Module,metaclass=Named):
+    """
+    pointconvnet
+    """
+    def __init__(self, num_classes=10,k=64,ksize=3,num_layers=4):
+        super().__init__()
+        self.num_classes = num_classes
+        nbhd = ksize**2
+        points = 2*[32*32] + 2*[16*16] + 3*[8*8]
+        chs = 3*[k] + 2*[2*k] + 2*[4*k]
+        self.initial_conv = conv2d(3,k,1)
+        self.net = nn.Sequential(
+            *[PointConv(chs[i],chs[i+1],npoint=points[i+1],nbhd=nbhd) for i in range(num_layers)],
+            Expression(lambda u:u[-1].mean(-1)),
+            nn.Linear(chs[num_layers],num_classes)
+        )
 
+    def forward(self,x):
+        bs,c,h,w = x.shape
+        coords = torch.stack(torch.meshgrid([torch.linspace(-1,1,h),torch.linspace(-1,1,w)]),dim=-1).view(h*w,2).unsqueeze(0).permute(0,2,1).repeat(bs,1,1).to(x.device)
+        inp_as_points = self.initial_conv(x).view(bs,-1,h*w)
+        return self.net((coords,inp_as_points))
 
 
 
