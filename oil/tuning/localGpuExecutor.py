@@ -153,7 +153,7 @@ def _process_chunk(fn, chunk):
     """
     return [fn(*args) for args in chunk]
 
-def _process_worker(call_queue, result_queue,gpu_lock,gpus):
+def _process_worker(call_queue, result_queue,gpu_set,gpu_pool):
     """Evaluates calls from call_queue and places the results in result_queue.
     This worker is run in a separate process.
     Args:
@@ -172,7 +172,10 @@ def _process_worker(call_queue, result_queue,gpu_lock,gpus):
             return
         try:
             #print(id(call_queue))
-            gpu_id = gpus.get(block=True)
+            while True:
+                gpu_id = gpu_pool.get(block=True)
+                if gpu_id in gpu_set:
+                    break
             os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
             os.environ["CUDA_VISIBLE_DEVICES"]=gpu_id#str(gpu_id)
             #print(gpu_id)
@@ -183,7 +186,10 @@ def _process_worker(call_queue, result_queue,gpu_lock,gpus):
         else:
             result_queue.put(_ResultItem(call_item.work_id,
                                          result=r))
-            gpus.put(gpu_id)
+        # if gpu_id in gpu_set: # Only return the gpu to the pool if allowed
+        gpu_pool.put(gpu_id)
+        # else:
+        #     print(f"gpu {gpu_id} was not returned to the pool")
 
 def _add_call_item_to_queue(pending_work_items,
                             work_ids,
@@ -402,10 +408,11 @@ class LocalGpuExecutor(_base.Executor):
         # Make the call queue slightly larger than the number of processes to
         # prevent the worker processes from idling. But don't make it too big
         # because futures in the call queue cannot be cancelled.
-        self._call_queue = multiprocessing.Queue(self._max_workers +
+        self._call_queue = multiprocessing.Queue(torch.cuda.device_count() +
                                                  EXTRA_QUEUED_CALLS)
-        self._gpu_queue = multiprocessing.Queue(max_workers)
-        for gpu_id in os.environ["CUDA_VISIBLE_DEVICES"].split(',')[:max_workers]:
+        self._gpu_queue = multiprocessing.Queue(torch.cuda.device_count())
+        self._possible_gpus= set(os.environ["CUDA_VISIBLE_DEVICES"].split(',')[:max_workers])
+        for gpu_id in self._possible_gpus:
             self._gpu_queue.put(gpu_id)
         #self.gpu_lock = multiprocessing.Lock()
         os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
@@ -428,6 +435,16 @@ class LocalGpuExecutor(_base.Executor):
         self._broken = False
         self._queue_count = 0
         self._pending_work_items = {}
+
+    def add_gpus(self,gpus):
+        self._possible_gpus = self._possible_gpus.union(gpus.split(','))
+        #self._max_workers = len(self._possible_gpus)
+        print("New GPUs added, Pool = ",self._possible_gpus)
+
+    def remove_gpus(self,gpus):
+        gpus_to_remove = set(gpus.split(','))&self._possible_gpus
+        self._possible_gpus -= gpus_to_remove
+        print(f"GPUs {gpus_to_remove} removed")
 
     def _start_queue_management_thread(self):
         # When the executor gets lost, the weakref callback will wake up
@@ -455,7 +472,7 @@ class LocalGpuExecutor(_base.Executor):
                     target=_process_worker,
                     args=(self._call_queue,
                           self._result_queue,
-                          None,
+                          self._possible_gpus,
                           self._gpu_queue))
             p.start()
             self._processes[p.pid] = p

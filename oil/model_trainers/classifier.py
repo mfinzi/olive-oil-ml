@@ -51,15 +51,15 @@ from oil.utils.utils import LoaderTo, cosLr, recursively_update,islice
 from oil.tuning.study import train_trial
 from oil.datasetup.dataloaders import getLabLoader
 from oil.datasetup.datasets import CIFAR10
-from oil.architectures.img_classifiers import layer13s
+from oil.architectures.img_classifiers import layer13s,layer13
 from oil.utils.parallel import try_multigpu_parallelize
 from collections import Iterable,defaultdict
 import collections
 
 def makeTrainer(config):
     cfg = {
-        'dataset': CIFAR10,'network':layer13s,'net_config': {},
-        'loader_config': {'amnt_dev':5000,'lab_BS':64, 'pin_memory':True,'num_workers':3},
+        'dataset': CIFAR10,'network':layer13,'net_config': {},
+        'loader_config': {'amnt_dev':5000,'lab_BS':64, 'pin_memory':True,'num_workers':0},
         'opt_config':{'optim':SGD}, 
         'num_epochs':100,'trainer_config':{},
         }
@@ -67,7 +67,7 @@ def makeTrainer(config):
     recursively_update(cfg,config)
     
     trainset = cfg['dataset']('~/datasets/{}/'.format(cfg['dataset']))
-    device = torch.device('cuda:0')
+    device = torch.device('cuda')
     fullCNN = torch.nn.Sequential(
         trainset.default_aug_layers(),
         cfg['network'](num_classes=trainset.num_classes,**cfg['net_config'])
@@ -80,8 +80,7 @@ def makeTrainer(config):
     if len(dataloaders['Dev'])==0:
         testset = cfg['dataset']('~/datasets/{}/'.format(cfg['dataset']),train=False)
         dataloaders['Test'] = DataLoader(testset,batch_size=cfg['loader_config']['lab_BS'],
-                        shuffle=False,num_workers=cfg['loader_config']['num_workers']//2,
-                        pin_memory=cfg['loader_config']['pin_memory'])
+                        shuffle=False,num_workers=0,pin_memory=False)
     dataloaders = {k:LoaderTo(v,device) for k,v in dataloaders.items()}
 
     optim = cfg['opt_config'].pop('optim')

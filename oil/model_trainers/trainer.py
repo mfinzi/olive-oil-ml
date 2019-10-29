@@ -38,7 +38,7 @@ class Trainer(object):
             for i, minibatch in enumerate(self.dataloaders['train']):
                 step = i + (self.epoch-1)*steps_per_epoch
                 with self.logger as do_log:
-                    if do_log: self.logStuff(step, minibatch)
+                   if do_log: self.logStuff(step, minibatch)
                 self.step(minibatch)
                 [sched.step(step/steps_per_epoch) for sched in self.lr_schedulers]
         self.logStuff(step)

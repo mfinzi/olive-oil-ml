@@ -74,7 +74,8 @@ def _chain_from_iterable_of_lists(iterable):
             yield element.pop()
 
 def LocalExecutor(max_workers=None):
-    if max_workers==1 or torch.cuda.device_count()<=1:
+    if max_workers==1 or torch.cuda.device_count()<=1 or os.environ.copy().get("WORLD_SIZE",0)!=0:
+        print("local")
         return futures.ThreadPoolExecutor(max_workers=1)
     else:
         return LocalGpuExecutor(max_workers)

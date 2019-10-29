@@ -11,6 +11,7 @@ from functools import partial
 from .slurmExecutor import SlurmExecutor, LocalExecutor
 from ..logging.lazyLogger import LazyLogger
 from ..utils.mytqdm import tqdm
+from ..utils.utils import maybe_get_input
 import os
 import numpy as np
 from collections.abc import Iterable
@@ -53,6 +54,29 @@ class Study(object):
             flat_cfgs.append(row,ignore_index=True)
         return flat_cfgs
 
+    def process_user_input(self,executor):
+        inp = maybe_get_input()
+        if inp is None: return
+        if inp[:4]=="halt":pass
+        elif inp[:3]=="add":
+            if hasattr(executor,"add_gpus"): executor.add_gpus(inp[4:-1])
+        elif inp[:2]=="rm":
+            if hasattr(executor,"remove_gpus"): executor.remove_gpus(inp[3:-1])
+        elif inp[:4]=="best":self.print_best_sofar()
+        #print(inp)
+        #else:pass
+
+#    def process_result(self,result):
+        # cfg,outcome = result
+        # cfg_row = pd.DataFrame(flatten_dict(cfg),index=['config {}'.format(start_id+j)])
+        # outcome_row = outcome.iloc[-1].to_frame('outcome {}'.format(start_id+j)).T
+        # self.configs = self.configs.append(cfg_row)
+        # self.outcomes = self.outcomes.append(outcome_row)
+        # with pd.option_context('display.expand_frame_repr',False):
+        #     print(self.configs.iloc[-1:])
+        #     print(self.outcomes.iloc[-1:])
+        # self.save_loc = self.logger.save_object(self,'study.s')
+
     def run(self, num_trials=None, max_workers=None, new_config_spec=None,ordered=True):
         """ runs the study with num_trials and max_workers slurm nodes
             trials are executed in parallel by the slurm nodes, study object
@@ -61,21 +85,31 @@ class Study(object):
         with self.Executor(max_workers) as executor:
             start_id = len(self.configs)
             configs = grid_iter(self.config_spec,num_trials,shuffle = not ordered)
-            futures = [executor.submit(self.perform_trial,
-                        cfg,start_id+i) for i, cfg in enumerate(configs)]
-            for j, future in enumerate(tqdm(concurrent.futures.as_completed(futures),
-                                            total=len(futures),desc=self.name)):
-                cfg, outcome = future.result()
-                cfg_row = pd.DataFrame(flatten_dict(cfg),index=['config {}'.format(start_id+j)])
-                outcome_row = outcome.iloc[-1].to_frame('outcome {}'.format(start_id+j)).T
-                self.configs = self.configs.append(cfg_row)
-                self.outcomes = self.outcomes.append(outcome_row)
-                with pd.option_context('display.expand_frame_repr',False):
-                    print(self.configs.iloc[-1:])
-                    print(self.outcomes.iloc[-1:])
-                    self.print_best_sofar()
-                save_loc = self.logger.save_object(self,'study.s')
-        return save_loc
+            futures = {executor.submit(self.perform_trial,
+                        cfg,start_id+i) for i, cfg in enumerate(configs)}
+            # for j, future in enumerate(tqdm(concurrent.futures.as_completed(futures),
+            #                                 total=len(futures),desc=self.name)):
+            #     cfg, outcome = future.result()
+            j=0
+            while futures:
+                for future in futures:
+                    if future.done():
+                        cfg,outcome = future.result()
+                        cfg_row = pd.DataFrame(flatten_dict(cfg),index=['config {}'.format(start_id+j)])
+                        outcome_row = outcome.iloc[-1].to_frame('outcome {}'.format(start_id+j)).T
+                        self.configs = self.configs.append(cfg_row)
+                        self.outcomes = self.outcomes.append(outcome_row)
+                        with pd.option_context('display.expand_frame_repr',False):
+                            print(self.configs.iloc[-1:])
+                            print(self.outcomes.iloc[-1:])
+                        self.save_loc = self.logger.save_object(self,'study.s')
+                        j+=1
+                        break
+                else:
+                    self.process_user_input(executor)
+                    continue
+                futures.remove(future)
+        return self.save_loc
         # we could pass in a function that outputs the generator, and that function
         # can be pickled (by dill)
         # IF we save the current iteration, a generator can also be resumed,
@@ -96,12 +130,11 @@ class Study(object):
             return
         objective = self.outcomes.columns[validation_set][0]
         imax = np.argmax(self.outcomes[objective].to_numpy())
-        print("Best So Far:")
-        print("=====================================")
+        print("="*33+" Best So Far: "+"="*33)
         if not self.covariates().empty:
             print(self.covariates().iloc[imax:imax+1])
         print(self.outcomes.iloc[imax:imax+1])
-        print("=====================================")
+        print("="*80)
 
 # Plan for pruning support (e.g. median rule, hyperband)
         # Support for trials that train in segments via generators
@@ -121,8 +154,13 @@ class Study(object):
         # sample_config could be random (aka prior), but may have state dependent
         # on (partial) outcome
 
+def cleanup_cuda():
+    torch.cuda.empty_cache()
+    if os.environ.copy().get("WORLD_SIZE",0)!=0:
+        torch.distributed.destroy_process_group()
+
 class train_trial(object):
-    def __init__(self,make_trainer,strict=False):
+    def __init__(self,make_trainer,strict=True):
         self.make_trainer = make_trainer
         self.strict=strict
     def __call__(self,cfg,i=None):
@@ -138,16 +176,12 @@ class train_trial(object):
                 outcome = trainer.train(portion)
                 cfg['saved_at'] = trainer.logger.save_object(trainer,
                                     suffix='checkpoints/c{}.trainer'.format(trainer.epoch))
-            if os.environ.copy().get("WORLD_SIZE",0)!=0:
-                torch.cuda.empty_cache()
-                torch.distributed.destroy_process_group()
-            return cfg, outcome
         except Exception as e:
-            if os.environ.copy().get("WORLD_SIZE",0)!=0:
-                torch.cuda.empty_cache()
-                torch.distributed.destroy_process_group()
-            if strict: raise
-            else: return cfg, e
+            if self.strict: raise
+            outcome = e
+        cleanup_cuda()
+        del trainer
+        return cfg, outcome
 
 
 # def train_trial(make_trainer,strict=False):
