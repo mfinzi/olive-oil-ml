@@ -1,4 +1,5 @@
 import torch, torchvision
+
 import torch.optim as optim
 import torch.nn as nn
 import os
@@ -40,8 +41,9 @@ import os
 from oil.tuning.study import Study, train_trial
 
 if __name__=='__main__':
-    config_spec = {'num_epochs':100,'loader_config':{'amnt_dev':0,'lab_BS':64},
-        'network':[layer13s],'net_config':{'k':256},'trainer_config':{'log_dir':os.path.expanduser('~/tb-experiments/deconv_bs_large/')}}
-    Trial = simpleClassifierTrial(strict=True)
+    config_spec = {'num_epochs':5,'loader_config':{'amnt_dev':5000,'lab_BS':256},
+        'network':[layer13s],'net_config':{'k':[32,64,96,50]},
+        'trainer_config':{'log_dir':os.path.expanduser('~/tb-experiments/deconv_bs_large/')}}
+    Trial = simpleClassifierTrial
     cutout_study = Study(Trial,config_spec)
     cutout_study.run()

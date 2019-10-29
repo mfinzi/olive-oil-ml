@@ -11,6 +11,7 @@ from time import time
 import numpy as np
 from sklearn.neighbors.kde import KernelDensity
 from ...utils.utils import Expression,export,Named
+from ..parts import conv2d
 
 def timeit(tag, t):
     print("{}: {}s".format(tag, time() - t))
@@ -155,22 +156,31 @@ def subsample_and_neighbors(npoint,nsample,xyz):
     neighbor_idx = knn_point(nsample, xyz, new_xyz)
     return new_xyz,neighbor_idx
 
+def pthash(xyz):
+    return hash(tuple(xyz.cpu().data.numpy().reshape(-1))+(xyz.device,))
+
 class FarthestSubsample(nn.Module):
-    def __init__(self,points):
+    def __init__(self,ds_frac=0.5,knn_channels=None):
         super().__init__()
-        self.npoints = points
+        self.ds_frac = ds_frac
         self.subsample_lookup = {}
-    def forward(self,x):
+        self.knn_channels = knn_channels
+    def forward(self,x,coords_only=False):
+        # BCN representation assumed
         coords,values = x
-        key = pthash(coords)
-        if key not in self.subsample_lookup:
+        coords = coords.permute(0, 2, 1)
+        values = values.permute(0, 2, 1)
+        num_downsampled_points = int(np.round(coords.shape[1]*self.ds_frac))
+        key = pthash(coords[:,:,:self.knn_channels])
+        if key not in self.subsample_lookup:# or True:
             #print("Cache miss")
-            self.subsample_lookup[key] = farthest_point_sample(coords, self.npoints)
-        fps_idx = self.subsample_neighbor_lookup[key]
-        new_coords = index_points(coords,fps_idx)
-        new_values = index_points(values,fps_idx)
+            self.subsample_lookup[key] = farthest_point_sample(coords, num_downsampled_points)
+        fps_idx = self.subsample_lookup[key]
+        new_coords = index_points(coords,fps_idx).permute(0, 2, 1)
+        if coords_only: return new_coords
+        new_values = index_points(values,fps_idx).permute(0, 2, 1)
         return new_coords,new_values
-        
+
 def subsample(npoint,nsample,xyz):
     B, N, C = xyz.shape
     S = npoint
@@ -249,15 +259,12 @@ class WeightNet(nn.Module):
 
         return weights
 
-def pthash(xyz):
-    return hash(tuple(xyz.cpu().data.numpy().reshape(-1))+(xyz.device,))
-
 @export
 class PointConvSetAbstraction(nn.Module):
-    def __init__(self, npoint, nsample, in_channel, mlp, group_all,xyz_dim=3):
-        super(PointConvSetAbstraction, self).__init__()
+    def __init__(self, ds_frac, nsample, in_channel, mlp, group_all,xyz_dim=3,knn_channels=None):
+        super().__init__()
         cicm_co = 16
-        self.npoint = npoint
+        self.knn_channels = knn_channels
         self.nsample = nsample
         self.mlp_convs = nn.ModuleList()
         self.mlp_bns = nn.ModuleList()
@@ -271,7 +278,11 @@ class PointConvSetAbstraction(nn.Module):
         self.linear = nn.Linear(cicm_co * mlp[-1], mlp[-1])
         self.bn_linear = nn.BatchNorm1d(mlp[-1])
         self.group_all = group_all
-        self.subsample_neighbor_lookup = {}
+
+        self.neighbor_lookup = {}
+        self.ds_frac = ds_frac
+        self.subsample = FarthestSubsample(ds_frac,knn_channels=knn_channels)
+
     def forward(self, inp):
         """
         Input:
@@ -281,19 +292,25 @@ class PointConvSetAbstraction(nn.Module):
             new_xyz: sampled points position data, [B, C, S]
             new_points_concat: sample points feature data, [B, D', S]
         """
+        
+        new_xyz = self.subsample(inp,coords_only=True)
         xyz, points = inp
         B = xyz.shape[0]
         xyz = xyz.permute(0, 2, 1)
+        new_xyz = new_xyz.permute(0, 2, 1)
         points = points.permute(0, 2, 1)
-
-        key = pthash(xyz)
-        if key not in self.subsample_neighbor_lookup:
+        num_ds_points = new_xyz.shape[1]
+        key = pthash(xyz[:,:,:self.knn_channels])
+        #print(xyz.shape,new_xyz.shape)
+        #assert False
+        if key not in self.neighbor_lookup:# or True:
             #print("Cache miss")
-            self.subsample_neighbor_lookup[key] = subsample_and_neighbors(self.npoint,self.nsample,xyz)
-        new_xyz, neighbor_idx = self.subsample_neighbor_lookup[key]
+            self.neighbor_lookup[key] = knn_point(min(self.nsample,xyz.shape[1]),
+                    xyz[:,:,:self.knn_channels], new_xyz[:,:,:self.knn_channels])
+        neighbor_idx = self.neighbor_lookup[key]
         neighbor_xyz = index_points(xyz, neighbor_idx) # [B, npoint, nsample, C]
         B, N, C = xyz.shape
-        neighbor_xyz_offsets = neighbor_xyz - new_xyz.view(B, self.npoint, 1, C)
+        neighbor_xyz_offsets = neighbor_xyz - new_xyz.view(B, num_ds_points, 1, C)
         new_points = index_points(points, neighbor_idx)
         #new_xyz, new_points, grouped_xyz_norm, _ = sample_and_group(self.npoint, self.nsample, xyz, points)
         # new_xyz: sampled points position data, [B, npoint, C]
@@ -305,10 +322,9 @@ class PointConvSetAbstraction(nn.Module):
 
         grouped_xyz = neighbor_xyz_offsets.permute(0, 3, 2, 1)
         weights = self.weightnet(grouped_xyz)
-        new_points = torch.matmul(input=new_points.permute(0, 3, 1, 2), other = weights.permute(0, 3, 2, 1)).view(B, self.npoint, -1)
+        new_points = torch.matmul(input=new_points.permute(0, 3, 1, 2),
+                        other = weights.permute(0, 3, 2, 1)).view(B, num_ds_points, -1)
         new_points = self.linear(new_points).permute(0,2,1)
-        #new_points = self.bn_linear(new_points)
-        #new_points = F.relu(new_points)
         new_xyz = new_xyz.permute(0, 2, 1)
         return (new_xyz, new_points)
 
@@ -330,14 +346,14 @@ class Pass(nn.Module):
         c,y = x
         return c, self.module(y)
 
-def PointConv(in_channels,out_channels,nbhd=9,npoint=32**2,bandwidth=0.1):
+def PointConv(in_channels,out_channels,nbhd=9,ds_frac=1,bandwidth=0.1,xyz_dim=2,knn_channels=None):
     mlp_channels = [out_channels//4,out_channels//2,out_channels]
     # return PointConvDensitySetAbstraction(
     #         npoint=npoint, nsample=nbhd, in_channel=in_channels,
     #         mlp=mlp_channels, bandwidth = bandwidth, group_all=False,xyz_dim=2)
     return PointConvSetAbstraction(
-            npoint=npoint, nsample=nbhd, in_channel=in_channels,
-            mlp=mlp_channels, group_all=False,xyz_dim=2)
+            ds_frac=ds_frac, nsample=nbhd, in_channel=in_channels,
+            mlp=mlp_channels, group_all=False,xyz_dim=xyz_dim,knn_channels=knn_channels)
 
 @export
 def pConvBNrelu(in_channels,out_channels,**kwargs):
@@ -349,26 +365,32 @@ def pConvBNrelu(in_channels,out_channels,**kwargs):
 
 @export
 class pBottleneck(nn.Module):
-    def __init__(self,in_channels,out_channels,ksize=3,drop_rate=0,gn=False,**kwargs):
+    def __init__(self,in_channels,out_channels,nbhd=3.66**2,ds_frac=0.5,drop_rate=0,r=4,gn=False,**kwargs):
         super().__init__()
+        self.in_channels = in_channels
         self.out_channels = out_channels
-        norm_layer = (lambda c: nn.GroupNorm(c//16,c)) if gn else nn.BatchNorm2d
+        norm_layer = (lambda c: nn.GroupNorm(c//16,c)) if gn else nn.BatchNorm1d
+        self.pointconv = PointConv(in_channels//r,out_channels,nbhd=nbhd,ds_frac=ds_frac,**kwargs)
         self.net = nn.Sequential(
             Pass(norm_layer(in_channels)),
             Pass(nn.ReLU()),
-            Pass(conv2d(in_channels,out_channels,1)),
-            Pass(norm_layer(in_channels)),
+            Pass(nn.Conv1d(in_channels,in_channels//r,1)),
+            Pass(norm_layer(in_channels//r)),
             Pass(nn.ReLU()),
-            PointConv(*args,**kwargs),
-            Pass(norm_layer(in_channels)),
+            self.pointconv,
+            Pass(norm_layer(out_channels)),
             Pass(nn.ReLU()),
-            Pass(conv2d(in_channels,out_channels,1)),
+            Pass(nn.Conv1d(out_channels,out_channels,1)),
         )
 
     def forward(self,x):
-        values,coords = x
-        new_values,new_coords  = self.net(x)
-        return values[:,:self.out_channels] + new_values, new_coords
+        coords,values = x
+        #print(values.shape)
+        new_coords,new_values  = self.net(x)
+        new_values[:,:self.in_channels] += self.pointconv.subsample(x)[1]
+        #print(shortcut.shape)
+        #print(new_coords.shape,new_values.shape)
+        return new_coords,new_values
 
 # @export
 # class PointConvDensitySetAbstraction(nn.Module):

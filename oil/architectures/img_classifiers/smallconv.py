@@ -7,7 +7,7 @@ import torch.nn as nn
 import numpy as np
 from torch.nn.utils import weight_norm
 from ...utils.utils import Expression,export,Named
-from ..parts import ResBlock, DeConv2d, FastDeconv
+from ..parts import ResBlock, DeConv2d, FastDeconv, MaxBlurPool,BlurPool
 
 
 def ConvBNrelu(in_channels,out_channels,stride=1):
@@ -67,12 +67,12 @@ class layer13s(nn.Module,metaclass=Named):
             ConvBNrelu(3,k),
             ConvBNrelu(k,k),
             ConvBNrelu(k,2*k),
-            nn.MaxPool2d(2),
+            nn.MaxPool2d(2),#MaxBlurPool(2*k),
             nn.Dropout2d(),
             ConvBNrelu(2*k,2*k),
             ConvBNrelu(2*k,2*k),
             ConvBNrelu(2*k,2*k),
-            nn.MaxPool2d(2),
+            nn.MaxPool2d(2),#MaxBlurPool(2*k),
             nn.Dropout2d(),
             ConvBNrelu(2*k,2*k),
             ConvBNrelu(2*k,2*k),

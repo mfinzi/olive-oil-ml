@@ -3,6 +3,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader, Dataset
 import torchvision.datasets as ds
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 from . import augLayers
 from ..utils.utils import Named
@@ -32,7 +33,15 @@ class EasyIMGDataset(Dataset,metaclass=Named):
     def default_aug_layers(self):
         return nn.Sequential()
 
-    
+# class InMemoryDataset(EasyIMGDataset):
+#     def __init__(self,*args,**kwargs):
+#         super().__init__(*args,**kwargs)
+#         self.data = F.to_tensor(self.data)
+#     def to(self,device):
+#         self.data.to(device)
+#         self.targets.to(device)
+#         return self
+
 
 class CIFAR10(EasyIMGDataset,ds.CIFAR10):
     means = (0.4914, 0.4822, 0.4465)

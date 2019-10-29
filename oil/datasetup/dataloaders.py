@@ -32,7 +32,7 @@ def getLabLoader(trainset, lab_BS, amnt_labeled=1, amnt_dev=0, dataseed=0,**kwar
     if numLabeled == 0: labLoader = EmptyLoader()
 
     devSampler = SequentialSubsetSampler(devIndices) # No shuffling on dev
-    devLoader = DataLoader(trainset,sampler=devSampler,batch_size=50)
+    devLoader = DataLoader(trainset,sampler=devSampler,batch_size=lab_BS)
     return labLoader, devLoader
 
 def classBalancedSampleIndices(trainset, numLabeled, numDev):

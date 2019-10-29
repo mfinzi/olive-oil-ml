@@ -5,11 +5,11 @@ import torch.nn.functional as F
 import torch.nn as nn
 import numpy as np
 from torch.nn.utils import weight_norm
+from ...utils.utils import Expression,export,Named
 #from ...datasetup.augLayers import GaussianNoise
 # weight init is automatically done in the module initialization
 # see https://github.com/pytorch/pytorch/blob/master/torch/nn/modules/conv.py
 
-__all__=[]
 def weight_init_he(m):
     if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
         n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
@@ -28,7 +28,7 @@ class Expression(nn.Module):
         return self.func(x)
 
 
-  
+@export
 class layer13(nn.Module):
     """
     CNN from Mean Teacher paper

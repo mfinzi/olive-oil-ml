@@ -4,21 +4,13 @@ from torch.nn import Parameter
 import torch.nn.functional as F
 import torch.nn as nn
 import torch.nn.init as init
-from oil.architectures.parts import PointConvSetAbstraction#,PointConvDensitySetAbstraction
+from oil.architectures.parts import PointConvSetAbstraction, pConvBNrelu, pBottleneck#,PointConvDensitySetAbstraction
 import numpy as np
 from torch.nn.utils import weight_norm
 import math
+from ..parts import conv2d
 from ...utils.utils import Expression,export,Named
 
-def conv2d(in_channels,out_channels,kernel_size=3,coords=False,dilation=1,**kwargs):
-    """ Wraps nn.Conv2d and CoordConv, padding is set to same
-        and coords=True can be specified to get additional coordinate in_channels"""
-    assert 'padding' not in kwargs, "assumed to be padding = same "
-    same = (kernel_size//2)*dilation
-    if coords: 
-        return CoordConv(in_channels,out_channels,kernel_size,padding=same,dilation=dilation,**kwargs)
-    else: 
-        return nn.Conv2d(in_channels,out_channels,kernel_size,padding=same,dilation=dilation,**kwargs)
 
 def RestrictedAttention(Q,K,V,P=0):
     """ Self attention mechanism, O = softmax(QK^T/sqrt(d) + P)V
@@ -311,14 +303,14 @@ class layer13at(nn.Module,metaclass=Named):
     def forward(self,x):
         return self.net(x)
 
-def PointConv(in_channels,out_channels,nbhd=9,npoint=32**2,bandwidth=0.1):
-    mlp_channels = [out_channels//4,out_channels//2,out_channels]
-    # return PointConvDensitySetAbstraction(
-    #         npoint=npoint, nsample=nbhd, in_channel=in_channels,
-    #         mlp=mlp_channels, bandwidth = bandwidth, group_all=False,xyz_dim=2)
-    return PointConvSetAbstraction(
-            npoint=npoint, nsample=nbhd, in_channel=in_channels,
-            mlp=mlp_channels, group_all=False,xyz_dim=2)
+# def PointConv(in_channels,out_channels,nbhd=9,npoint=32**2,bandwidth=0.1):
+#     mlp_channels = [out_channels//4,out_channels//2,out_channels]
+#     # return PointConvDensitySetAbstraction(
+#     #         npoint=npoint, nsample=nbhd, in_channel=in_channels,
+#     #         mlp=mlp_channels, bandwidth = bandwidth, group_all=False,xyz_dim=2)
+#     return PointConvSetAbstraction(
+#             npoint=npoint, nsample=nbhd, in_channel=in_channels,
+#             mlp=mlp_channels, group_all=False,xyz_dim=2)
 
 def logspace(a,b,k):
     return np.exp(np.linspace(np.log(a),np.log(b),k))
@@ -328,15 +320,15 @@ class layer13pc(nn.Module,metaclass=Named):
     """
     pointconvnet
     """
-    def __init__(self, num_classes=10,k=64,ksize=3,num_layers=4):
+    def __init__(self, num_classes=10,k=64,ksize=3,num_layers=4,**kwargs):
         super().__init__()
         self.num_classes = num_classes
-        nbhd = int(ksize**2)
-        points = np.round(logspace(32**2,4**2,num_layers+1)).astype(int)
+        nbhd = int(np.round(ksize**2))
+        ds_fracs = 256**(-1/num_layers)
         chs = np.round(logspace(k,4*k,num_layers+1)).astype(int)
         self.initial_conv = conv2d(3,k,1)
         self.net = nn.Sequential(
-            *[PointConv(chs[i],chs[i+1],npoint=points[i+1],nbhd=nbhd) for i in range(num_layers)],
+            *[pConvBNrelu(chs[i],chs[i+1],ds_frac=ds_fracs,nbhd=nbhd,**kwargs) for i in range(num_layers)],
             Expression(lambda u:u[-1].mean(-1)),
             nn.Linear(chs[-1],num_classes)
         )
@@ -348,23 +340,23 @@ class layer13pc(nn.Module,metaclass=Named):
         return self.net((coords,inp_as_points))
 
 
-
 @export
-class layer13pcs(nn.Module,metaclass=Named):
+class resnetpc(nn.Module,metaclass=Named):
     """
     pointconvnet
     """
-    def __init__(self, num_classes=10,k=64,ksize=3,num_layers=4):
+    def __init__(self, num_classes=10,k=8,ksize=3.66,num_layers=6,**kwargs):
         super().__init__()
         self.num_classes = num_classes
-        nbhd = ksize**2
-        points = 2*[32*32] + 2*[16*16] + 3*[8*8]
-        chs = 3*[k] + 2*[2*k] + 2*[4*k]
-        self.initial_conv = conv2d(3,k,1)
+        nbhd = int(np.round(ksize**2))
+        ds_fracs = 256**(-1/num_layers)#logspace(1,1/256,num_layers+1)
+        chs = np.round(logspace(16,64*k,num_layers+1)).astype(int)
+        #print(chs)
+        self.initial_conv = conv2d(3,16,1)
         self.net = nn.Sequential(
-            *[PointConv(chs[i],chs[i+1],npoint=points[i+1],nbhd=nbhd) for i in range(num_layers)],
+            *[pBottleneck(chs[i],chs[i+1],ds_frac=ds_fracs,nbhd=nbhd,**kwargs) for i in range(num_layers)],
             Expression(lambda u:u[-1].mean(-1)),
-            nn.Linear(chs[num_layers],num_classes)
+            nn.Linear(chs[-1],num_classes)
         )
 
     def forward(self,x):
@@ -373,8 +365,27 @@ class layer13pcs(nn.Module,metaclass=Named):
         inp_as_points = self.initial_conv(x).view(bs,-1,h*w)
         return self.net((coords,inp_as_points))
 
+@export
+class colorEquivariantLayer13pc(layer13pc):
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,xyz_dim=5,knn_channels=2,**kwargs)
+    def forward(self,x):
+        bs,c,h,w = x.shape
+        coords = torch.stack(torch.meshgrid([torch.linspace(-1,1,h),torch.linspace(-1,1,w)]),dim=-1).view(h*w,2).unsqueeze(0).permute(0,2,1).repeat(bs,1,1).to(x.device)
+        coords_w_color = torch.cat([coords,x.view(bs,-1,h*w)],dim=1)
+        inp_as_points = self.initial_conv(0*x).view(bs,-1,h*w)
+        return self.net((coords_w_color,inp_as_points))
 
-
+@export
+class colorEquivariantResnetpc(resnetpc):
+    def __init__(self,*args,**kwargs):
+        super().__init__(*args,xyz_dim=5,knn_channels=2,**kwargs)
+    def forward(self,x):
+        bs,c,h,w = x.shape
+        coords = torch.stack(torch.meshgrid([torch.linspace(-1,1,h),torch.linspace(-1,1,w)]),dim=-1).view(h*w,2).unsqueeze(0).permute(0,2,1).repeat(bs,1,1).to(x.device)
+        coords_w_color = torch.cat([coords,x.view(bs,-1,h*w)],dim=1)
+        inp_as_points = self.initial_conv(0*x).view(bs,-1,h*w)
+        return self.net((coords_w_color,inp_as_points))
 # def Attention(Q,K,V,P=None):
 #     """Self attention mechanism, softmax(QK^T/sqrt(d))V
 #        assumes Q,K,V have shape (bs,n,d). Optionally includes relative
