@@ -17,6 +17,8 @@ import random
 class Named(type):
     def __str__(self):
         return self.__name__
+    def __repr__(self):
+        return self.__name__
 
 def export(fn):
     mod = sys.modules[fn.__module__]
