@@ -29,7 +29,7 @@ class Expression(nn.Module):
 
 
 @export
-class layer13(nn.Module):
+class layer13(nn.Module,metaclass=Named):
     """
     CNN from Mean Teacher paper
     """
@@ -91,7 +91,7 @@ class layer13(nn.Module):
 
 
 
-class ConvSmall(nn.Module):
+class ConvSmall(nn.Module,metaclass=Named):
     """
     CNN from Mean Teacher paper
     """
@@ -152,7 +152,7 @@ class ConvSmall(nn.Module):
 
 
 
-class ConvSmallNWN(nn.Module):
+class ConvSmallNWN(nn.Module,metaclass=Named):
     """
     CNN from Mean Teacher paper
     """

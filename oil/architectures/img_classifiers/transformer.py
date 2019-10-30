@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import torch.nn as nn
 import torch.nn.init as init
 from oil.architectures.parts import PointConvSetAbstraction, pConvBNrelu, pBottleneck#,PointConvDensitySetAbstraction
+from oil.architectures.parts import pResBlock,Pass
 import numpy as np
 from torch.nn.utils import weight_norm
 import math
@@ -366,6 +367,39 @@ class resnetpc(nn.Module,metaclass=Named):
         return self.net((coords,inp_as_points))
 
 @export
+class pWideResNet(nn.Module,metaclass=Named):
+    def __init__(self, num_classes=10, depth=28, widen_factor=10, drop_rate=0.3,nbhd=9):
+        super().__init__()
+        self.in_planes = 16
+        assert ((depth - 4) % 6 == 0), 'Wide-resnet depth should be 6n+4'
+        n = (depth - 4) / 6
+        k = widen_factor
+        nstages = [16, 16 * k, 32 * k, 64 * k]
+        self.initial_conv = conv2d(3,nstages[0],1)
+        self.net = nn.Sequential(
+            self._wide_layer(pResBlock, nstages[1], n, drop_rate, stride=1,nbhd=nbhd),
+            self._wide_layer(pResBlock, nstages[2], n, drop_rate, stride=2,nbhd=nbhd),
+            self._wide_layer(pResBlock, nstages[3], n, drop_rate, stride=2,nbhd=nbhd),
+            Pass(nn.BatchNorm1d(nstages[3])),#,momentum=0.9)),
+            Pass(nn.ReLU()),
+            Expression(lambda u:u[-1].mean(-1)),
+            nn.Linear(nstages[3],num_classes)
+        )
+    def _wide_layer(self, block, planes, num_blocks, drop_rate, stride,nbhd):
+        strides = [stride] + [1] * int(num_blocks - 1)
+        layers = []
+        for stride in strides:
+            layers.append(block(self.in_planes, planes, drop_rate, stride,nbhd=nbhd))
+            self.in_planes = planes
+        return nn.Sequential(*layers)
+    def forward(self,x):
+        bs,c,h,w = x.shape
+        a = np.sqrt(3)
+        coords = torch.stack(torch.meshgrid([torch.linspace(-a,a,h),torch.linspace(-a,a,w)]),dim=-1).view(h*w,2).unsqueeze(0).permute(0,2,1).repeat(bs,1,1).to(x.device)
+        inp_as_points = self.initial_conv(x).view(bs,-1,h*w)
+        return self.net((coords,inp_as_points))
+
+@export
 class colorEquivariantLayer13pc(layer13pc):
     def __init__(self,*args,**kwargs):
         super().__init__(*args,xyz_dim=5,knn_channels=2,**kwargs)
@@ -373,7 +407,7 @@ class colorEquivariantLayer13pc(layer13pc):
         bs,c,h,w = x.shape
         coords = torch.stack(torch.meshgrid([torch.linspace(-1,1,h),torch.linspace(-1,1,w)]),dim=-1).view(h*w,2).unsqueeze(0).permute(0,2,1).repeat(bs,1,1).to(x.device)
         coords_w_color = torch.cat([coords,x.view(bs,-1,h*w)],dim=1)
-        inp_as_points = self.initial_conv(0*x).view(bs,-1,h*w)
+        inp_as_points = self.initial_conv(torch.randn_like(x)).view(bs,-1,h*w)
         return self.net((coords_w_color,inp_as_points))
 
 @export
@@ -384,7 +418,7 @@ class colorEquivariantResnetpc(resnetpc):
         bs,c,h,w = x.shape
         coords = torch.stack(torch.meshgrid([torch.linspace(-1,1,h),torch.linspace(-1,1,w)]),dim=-1).view(h*w,2).unsqueeze(0).permute(0,2,1).repeat(bs,1,1).to(x.device)
         coords_w_color = torch.cat([coords,x.view(bs,-1,h*w)],dim=1)
-        inp_as_points = self.initial_conv(0*x).view(bs,-1,h*w)
+        inp_as_points = self.initial_conv(torch.randn_like(x)).view(bs,-1,h*w)
         return self.net((coords_w_color,inp_as_points))
 # def Attention(Q,K,V,P=None):
 #     """Self attention mechanism, softmax(QK^T/sqrt(d))V

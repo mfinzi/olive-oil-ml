@@ -168,6 +168,9 @@ class FarthestSubsample(nn.Module):
     def forward(self,x,coords_only=False):
         # BCN representation assumed
         coords,values = x
+        if self.ds_frac==1:
+            if coords_only: return coords
+            else: return x
         coords = coords.permute(0, 2, 1)
         values = values.permute(0, 2, 1)
         num_downsampled_points = int(np.round(coords.shape[1]*self.ds_frac))
@@ -259,6 +262,8 @@ class WeightNet(nn.Module):
 
         return weights
 
+import numbers
+
 @export
 class PointConvSetAbstraction(nn.Module):
     def __init__(self, ds_frac, nsample, in_channel, mlp, group_all,xyz_dim=3,knn_channels=None):
@@ -280,8 +285,10 @@ class PointConvSetAbstraction(nn.Module):
         self.group_all = group_all
 
         self.neighbor_lookup = {}
-        self.ds_frac = ds_frac
-        self.subsample = FarthestSubsample(ds_frac,knn_channels=knn_channels)
+        if isinstance(ds_frac,numbers.Number):
+            self.subsample = FarthestSubsample(ds_frac,knn_channels=knn_channels)
+        else:
+            self.subsample = ds_frac
 
     def forward(self, inp):
         """
@@ -338,6 +345,7 @@ class both(nn.Module):
         x,z = inp
         return self.module1(x),self.module2(z)
 
+@export
 class Pass(nn.Module):
     def __init__(self,module):
         super().__init__()
@@ -387,10 +395,70 @@ class pBottleneck(nn.Module):
         coords,values = x
         #print(values.shape)
         new_coords,new_values  = self.net(x)
-        new_values[:,:self.in_channels] += self.pointconv.subsample(x)[1]
+        new_values[:,:self.in_channels] += self.pointconv.subsample(x)[1] # subsampled old values
         #print(shortcut.shape)
         #print(new_coords.shape,new_values.shape)
         return new_coords,new_values
+
+class FarthestSubsample(nn.Module):
+    def __init__(self,ds_frac=0.5,knn_channels=None):
+        super().__init__()
+        self.ds_frac = ds_frac
+        self.subsample_lookup = {}
+        self.knn_channels = knn_channels
+    def forward(self,x,coords_only=False):
+        # BCN representation assumed
+        coords,values = x
+        coords = coords.permute(0, 2, 1)
+        values = values.permute(0, 2, 1)
+        num_downsampled_points = int(np.round(coords.shape[1]*self.ds_frac))
+        key = pthash(coords[:,:,:self.knn_channels])
+        if key not in self.subsample_lookup:# or True:
+            #print("Cache miss")
+            self.subsample_lookup[key] = farthest_point_sample(coords, num_downsampled_points)
+        fps_idx = self.subsample_lookup[key]
+        new_coords = index_points(coords,fps_idx).permute(0, 2, 1)
+        if coords_only: return new_coords
+        new_values = index_points(values,fps_idx).permute(0, 2, 1)
+        return new_coords,new_values
+
+def imagelike_nn_downsample(x,coords_only=False):
+    coords,values = x
+    bs,c,N = values.shape
+    h = w = int(np.sqrt(N))
+    ds_coords = torch.nn.functional.interpolate(coords.view(bs,2,h,w),scale_factor=0.5)
+    ds_values = torch.nn.functional.interpolate(values.view(bs,c,h,w),scale_factor=0.5)
+    if coords_only: return ds_coords.view(bs,2,-1)
+    return ds_coords.view(bs,2,-1), ds_values.view(bs,c,-1)
+
+
+
+@export
+class pResBlock(nn.Module):
+    def __init__(self,in_channels,out_channels,drop_rate=0,stride=1,nbhd=3**2):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        ds = 1 if stride==1 else imagelike_nn_downsample
+        self.net = nn.Sequential(
+            Pass(nn.BatchNorm1d(in_channels)),
+            Pass(nn.ReLU()),
+            PointConv(in_channels,out_channels,nbhd=nbhd,ds_frac=1),
+            Pass(nn.Dropout(p=drop_rate)),
+            Pass(nn.BatchNorm1d(out_channels)),
+            Pass(nn.ReLU()),
+            PointConv(out_channels,out_channels,nbhd=nbhd,ds_frac=ds),
+        )
+        self.shortcut = nn.Sequential()
+        if in_channels!=out_channels:
+            self.shortcut.add_module('conv',Pass(nn.Conv1d(in_channels,out_channels,1)))
+        if stride!=1:
+            self.shortcut.add_module('ds',Expression(lambda a: imagelike_nn_downsample(a)))
+
+    def forward(self,x):
+        res_coords,res_values = self.net(x)
+        skip_coords,skip_values = self.shortcut(x)
+        return res_coords,res_values+skip_values
 
 # @export
 # class PointConvDensitySetAbstraction(nn.Module):

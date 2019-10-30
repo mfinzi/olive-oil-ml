@@ -51,20 +51,26 @@ from oil.utils.utils import LoaderTo, cosLr, recursively_update,islice
 from oil.tuning.study import train_trial
 from oil.datasetup.dataloaders import getLabLoader
 from oil.datasetup.datasets import CIFAR10
-from oil.architectures.img_classifiers import layer13s,layer13
+from oil.architectures.img_classifiers import layer13
 from oil.utils.parallel import try_multigpu_parallelize
+from oil.tuning.args import argupdated_config
 from collections import Iterable,defaultdict
 import collections
+import copy
 
-def makeTrainer(config):
-    cfg = {
-        'dataset': CIFAR10,'network':layer13,'net_config': {},
-        'loader_config': {'amnt_dev':5000,'lab_BS':64, 'pin_memory':True,'num_workers':0},
-        'opt_config':{'optim':SGD}, 
+base_cfg = {'dataset': CIFAR10,'network':layer13,'net_config': {},
+        'loader_config': {'amnt_dev':5000,'lab_BS':50, 'pin_memory':True,'num_workers':0},
+        'opt_config':{'optim':SGD,'lr':.1},
         'num_epochs':100,'trainer_config':{},
         }
-    if config.get('opt_config',{}).get('optim',SGD)==SGD: cfg['opt_config'].update({'lr':.1, 'momentum':.9, 'weight_decay':1e-4,'nesterov':True})
-    recursively_update(cfg,config)
+def add_difference(master_dict,slave_dict):
+    for key in slave_dict.keys()-master_dict.keys():
+        master_dict[key] = slave_dict[key]
+
+def makeTrainer(cfg):
+    cfg = copy.deepcopy(cfg)
+    if cfg.get('opt_config',{}).get('optim',SGD)==SGD: 
+        add_difference(cfg['opt_config'],{'optim':SGD,'lr':.1, 'momentum':.9, 'weight_decay':1e-4,'nesterov':True})
     
     trainset = cfg['dataset']('~/datasets/{}/'.format(cfg['dataset']))
     device = torch.device('cuda')
@@ -92,4 +98,4 @@ simpleClassifierTrial = train_trial(makeTrainer)
 
 if __name__=='__main__':
     Trial = simpleClassifierTrial
-    Trial({'num_epochs':100,'loader_config':{'amnt_dev':0,'lab_BS':64}})
+    Trial(argupdated_config(base_cfg))
