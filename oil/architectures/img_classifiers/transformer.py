@@ -384,7 +384,7 @@ class colorEquivariantResnetpc(resnetpc):
         bs,c,h,w = x.shape
         coords = torch.stack(torch.meshgrid([torch.linspace(-1,1,h),torch.linspace(-1,1,w)]),dim=-1).view(h*w,2).unsqueeze(0).permute(0,2,1).repeat(bs,1,1).to(x.device)
         coords_w_color = torch.cat([coords,x.view(bs,-1,h*w)],dim=1)
-        inp_as_points = self.initial_conv(0*x).view(bs,-1,h*w)
+        inp_as_points = self.initial_conv(torch.randn_like(x)).view(bs,-1,h*w)
         return self.net((coords_w_color,inp_as_points))
 # def Attention(Q,K,V,P=None):
 #     """Self attention mechanism, softmax(QK^T/sqrt(d))V
