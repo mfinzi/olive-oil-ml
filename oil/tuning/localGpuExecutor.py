@@ -176,6 +176,7 @@ def _process_worker(call_queue, result_queue,gpu_set,gpu_pool):
                 gpu_id = gpu_pool.get(block=True)
                 if gpu_id in gpu_set:
                     break
+            #print("worker using gpu ",gpu_id)
             os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
             os.environ["CUDA_VISIBLE_DEVICES"]=gpu_id#str(gpu_id)
             #print(gpu_id)
@@ -414,6 +415,7 @@ class LocalGpuExecutor(_base.Executor):
         self._possible_gpus= set(os.environ["CUDA_VISIBLE_DEVICES"].split(',')[:max_workers])
         for gpu_id in self._possible_gpus:
             self._gpu_queue.put(gpu_id)
+        #print(self._possible_gpus)
         #self.gpu_lock = multiprocessing.Lock()
         os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
         #self.gpus = set()
