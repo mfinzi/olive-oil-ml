@@ -4,7 +4,7 @@ import numpy as np
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
-from oil.utils.utils import Named
+from oil.utils.utils import Named, export
 
 IMAGE_EXTENSTOINS = [".png", ".jpg", ".jpeg", ".bmp"]
 ATTR_ANNO = "list_attr_celeba.csv"
@@ -66,13 +66,13 @@ def find_imgs_only(root_dir):
                 images.append({'path':path,'attr':1})
     return images,None
 
+@export
 class CelebA(Dataset,metaclass=Named):
-    num_classes=10
     def __init__(self, root_dir, transform=None,size=64,flow=False):
         super().__init__()
         if transform is None: transform = transforms.Compose([
                                            transforms.CenterCrop(160),
-                                           transforms.Resize(64),
+                                           transforms.Resize(size),
                                            transforms.ToTensor()])
         full_dir = os.path.join(os.path.expanduser(root_dir),'celeba-dataset/img_align_celeba/img_align_celeba')
         #print(full_dir)

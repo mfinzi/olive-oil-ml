@@ -6,9 +6,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from . import augLayers
-from ..utils.utils import Named
+from ..utils.utils import Named, export
 from . import camvid
 from .celeba import CelebA
+
 class EasyIMGDataset(Dataset,metaclass=Named):
     ignored_index = -100
     class_weights = None
@@ -42,7 +43,7 @@ class EasyIMGDataset(Dataset,metaclass=Named):
 #         self.targets.to(device)
 #         return self
 
-
+@export
 class CIFAR10(EasyIMGDataset,ds.CIFAR10):
     means = (0.4914, 0.4822, 0.4465)
     stds = (.247,.243,.261)
@@ -52,7 +53,7 @@ class CIFAR10(EasyIMGDataset,ds.CIFAR10):
         augLayers.RandomTranslate(4),
         augLayers.RandomHorizontalFlip(),
         )
-
+@export
 class CIFAR100(EasyIMGDataset,ds.CIFAR100):
     means = (0.5071, 0.4867, 0.4408)
     stds = (0.2675, 0.2565, 0.2761)
@@ -62,7 +63,7 @@ class CIFAR100(EasyIMGDataset,ds.CIFAR100):
         augLayers.RandomTranslate(4),
         augLayers.RandomHorizontalFlip(),
         )
-
+@export
 class SVHN(EasyIMGDataset,ds.SVHN):
     #TODO: Find real mean and std
     means = (0.5, 0.5, 0.5)

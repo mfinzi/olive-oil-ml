@@ -63,7 +63,7 @@ class WideResNet(nn.Module,metaclass=Named):
         self.layer1 = self._wide_layer(WideBasic, nstages[1], n, drop_rate, stride=1)
         self.layer2 = self._wide_layer(WideBasic, nstages[2], n, drop_rate, stride=2)
         self.layer3 = self._wide_layer(WideBasic, nstages[3], n, drop_rate, stride=2)
-        self.bn1 = nn.BatchNorm2d(nstages[3], momentum=0.9)
+        self.bn1 = nn.BatchNorm2d(nstages[3])#, momentum=0.9)
         self.linear = nn.Linear(nstages[3], num_classes)
 
     def _wide_layer(self, block, planes, num_blocks, drop_rate, stride):
