@@ -11,7 +11,7 @@ from torch.utils.data.sampler import Sampler, SubsetRandomSampler
 #     unlabLoader = DataLoader(trainset,sampler=unlabSampler,batch_size=ul_BS,**kwargs)
 #     return unlabLoader
 
-def getLabLoader(trainset, lab_BS, amnt_labeled=1, amnt_dev=0, dataseed=0,**kwargs):
+def getLabLoader(trainset, lab_BS, amnt_labeled=1, amnt_dev=0, dataseed=0, balanced=True,**kwargs):
     """ returns a dataloader of class balanced subset of the full dataset,
         and a (possibly empty) dataloader reserved for devset
         amntLabeled and amntDev can be a fraction or an integer.
@@ -25,7 +25,8 @@ def getLabLoader(trainset, lab_BS, amnt_labeled=1, amnt_dev=0, dataseed=0,**kwar
     if amnt_dev <= 1:
         numDev *= numLabeled
     with FixedNumpySeed(dataseed):
-        labIndices, devIndices = classBalancedSampleIndices(trainset, numLabeled, numDev)
+        get_indices = classBalancedSampleIndices if (balanced and trainset.balanced) else randomSampleIndices
+        labIndices, devIndices = get_indices(trainset, numLabeled, numDev)
 
     labSampler = SubsetRandomSampler(labIndices)
     labLoader = DataLoader(trainset,sampler=labSampler,batch_size=lab_BS,**kwargs)
@@ -58,6 +59,11 @@ def classBalancedSampleIndices(trainset, numLabeled, numDev):
     print("Creating Train, Dev split \
         with {} Train and {} Dev".format(numLabeled, numDev))
     return labIndices, devIndices
+
+def randomSampleIndices(trainset,numLabeled,numDev):
+    numLabeled = (numLabeled-numDev)
+    indices = np.random.permutation(len(trainset))
+    return indices[:numLabeled],indices[numLabeled:numLabeled+numDev]
 
 #TODO: Needs some rework to function properly in the semisupervised case
 

@@ -13,6 +13,7 @@ from .celeba import CelebA
 class EasyIMGDataset(Dataset,metaclass=Named):
     ignored_index = -100
     class_weights = None
+    balanced = True
     def __init__(self,*args,gan_normalize=False,flow=False,download=True,**kwargs):
         transform = kwargs.pop('transform',None)
         if not transform: transform = self.default_transform(gan_normalize,flow)

@@ -10,7 +10,8 @@ import h5py
 import os
 from torch.utils.data import Dataset
 from oil.datasetup import augLayers
-from oil.utils.utils import Named, export
+from oil.utils.utils import Named, export, Expression
+from oil.architectures.parts import FarthestSubsample
 warnings.filterwarnings('ignore')
 
 #ModelNet40 code adapted from 
@@ -22,6 +23,12 @@ def load_h5(h5_filename):
     label = f['label'][:]
     seg = []
     return (data, label, seg)
+
+def _load_data_file(name):
+    f = h5py.File(name)
+    data = f["data"][:]
+    label = f["label"][:]
+    return data, label
 
 def load_data(dir,classification = False):
     data_train0, label_train0,Seglabel_train0  = load_h5(dir + 'ply_data_train0.h5')
@@ -44,43 +51,35 @@ def load_data(dir,classification = False):
         return train_data, train_Seglabel, test_data, test_Seglabel
 
 
-class RandomZrotation(nn.Module):
-    def __init__(self,max_angle=np.pi):
-        super().__init__()
-        self.max_angle = max_angle
-    def forward(self,x):
-        # this presumes z axis is coordinate 2?
-        # assumes x has shape B3N
-        bs,c,n = x.shape; assert c==3
-        angles = (2*torch.rand(bs)-1)*self.max_angle
-        R = torch.zeros(bs,3,3)
-        R[:,1,1] = 1
-        R[:,0,0] = R[:,2,2] = angles.cos()
-        R[:,0,2] = R[:,2,0] = angles.sin()
-        R[:,2,0] *=-1
-        return R.to(x.device)@x
-
-
-
 @export
 class ModelNet40(Dataset,metaclass=Named):
+    ignored_index = -100
+    class_weights = None
+    balanced=False
     num_classes=40
-    def __init__(self,root_dir,train=True,transform=None):
+    def __init__(self,root_dir,train=True,transform=None,size=1024):
         super().__init__()
-        self.transform = torch.ToTensor() if transform is None else transform
+        #self.transform = torchvision.transforms.ToTensor() if transform is None else transform
         train_x,train_y,test_x,test_y = load_data(
             os.path.expanduser('~/datasets/ModelNet40/'),classification=True)
         self.coords = train_x if train else test_x
         # N x m x 3
         self.labels = train_y if train else test_y
+        self.coords /= np.std(train_x,axis=(0,1))
         self.coords = self.coords.transpose((0,2,1)) # B x n x c -> B x c x n
+        self.size=size
+        #pt_coords = torch.from_numpy(self.coords)
+        #self.coords = FarthestSubsample(ds_frac=size/2048)((pt_coords,pt_coords))[0].numpy()
 
     def __getitem__(self,index):
-        return self.transform(self.coords[index]), self.labels[index]
+        return torch.from_numpy(self.coords[index]).float(), int(self.labels[index])
     def __len__(self):
-        return len(self.coords)
+        return len(self.labels)
     def default_aug_layers(self):
-        return RandomZrotation()
+        subsample = Expression(lambda x: x[:,:,np.random.permutation(x.shape[-1])[:self.size]])
+        return nn.Sequential(subsample,augLayers.RandomZrotation(),augLayers.GaussianNoise(.02))#,augLayers.PointcloudScale())#
+
+
 
 if __name__=='__main__':
     from mpl_toolkits import mplot3d

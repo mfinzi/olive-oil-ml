@@ -59,7 +59,7 @@ import collections
 import copy
 
 base_cfg = {'dataset': CIFAR10,'network':layer13,'net_config': {},
-        'loader_config': {'amnt_dev':5000,'lab_BS':50, 'pin_memory':True,'num_workers':0},
+        'loader_config': {'amnt_dev':500,'lab_BS':50, 'pin_memory':True,'num_workers':0},
         'opt_config':{'optim':SGD,'lr':.1},
         'num_epochs':100,'trainer_config':{},
         }
@@ -82,7 +82,7 @@ def makeTrainer(cfg):
 
     dataloaders = {}
     dataloaders['train'], dataloaders['Dev'] = getLabLoader(trainset,**cfg['loader_config'])
-    dataloaders['Train'] = islice(dataloaders['train'],10000//cfg['loader_config']['lab_BS'])
+    dataloaders['Train'] = islice(dataloaders['train'],len(dataloaders['train'])//10)
     if len(dataloaders['Dev'])==0:
         testset = cfg['dataset']('~/datasets/{}/'.format(cfg['dataset']),train=False)
         dataloaders['Test'] = DataLoader(testset,batch_size=cfg['loader_config']['lab_BS'],

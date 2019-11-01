@@ -7,7 +7,8 @@ setup(name="Pristine-ml",
       author='Marc Finzi',
       author_email='maf388@cornell.edu',
       license='MIT',
-      install_requires=['torch','torchvision','pandas','numpy','dill','sklearn','tqdm','torchcontrib'],
+      install_requires=['torch','torchvision','pandas','numpy','matplotlib','dill','sklearn','tqdm','torchcontrib',
+      'torch-scatter','torch-sparse','torch-cluster','torch-geometric','torch-spline-conv'],
       packages=["oil",],#find_packages()
       long_description=open('README.md').read(),
 )
