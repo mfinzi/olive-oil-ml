@@ -159,6 +159,7 @@ def subsample_and_neighbors(npoint,nsample,xyz):
 def pthash(xyz):
     return hash(tuple(xyz.cpu().data.numpy().reshape(-1))+(xyz.device,))
 
+@export
 class FarthestSubsample(nn.Module):
     def __init__(self,ds_frac=0.5,knn_channels=None):
         super().__init__()
@@ -175,10 +176,10 @@ class FarthestSubsample(nn.Module):
         values = values.permute(0, 2, 1)
         num_downsampled_points = int(np.round(coords.shape[1]*self.ds_frac))
         key = pthash(coords[:,:,:self.knn_channels])
-        if key not in self.subsample_lookup:# or True:
+        #if key not in self.subsample_lookup:# or True:
             #print("Cache miss")
-            self.subsample_lookup[key] = farthest_point_sample(coords, num_downsampled_points)
-        fps_idx = self.subsample_lookup[key]
+        #    self.subsample_lookup[key] = farthest_point_sample(coords, num_downsampled_points)
+        fps_idx = farthest_point_sample(coords, num_downsampled_points)#self.subsample_lookup[key]
         new_coords = index_points(coords,fps_idx).permute(0, 2, 1)
         if coords_only: return new_coords
         new_values = index_points(values,fps_idx).permute(0, 2, 1)
@@ -310,11 +311,12 @@ class PointConvSetAbstraction(nn.Module):
         key = pthash(xyz[:,:,:self.knn_channels])
         #print(xyz.shape,new_xyz.shape)
         #assert False
-        if key not in self.neighbor_lookup:# or True:
-            #print("Cache miss")
-            self.neighbor_lookup[key] = knn_point(min(self.nsample,xyz.shape[1]),
-                    xyz[:,:,:self.knn_channels], new_xyz[:,:,:self.knn_channels])
-        neighbor_idx = self.neighbor_lookup[key]
+        # if key not in self.neighbor_lookup:# or True:
+        #     #print("Cache miss")
+        #     self.neighbor_lookup[key] = knn_point(min(self.nsample,xyz.shape[1]),
+        #             xyz[:,:,:self.knn_channels], new_xyz[:,:,:self.knn_channels])
+        neighbor_idx = knn_point(min(self.nsample,xyz.shape[1]),
+                    xyz[:,:,:self.knn_channels], new_xyz[:,:,:self.knn_channels])#self.neighbor_lookup[key]
         neighbor_xyz = index_points(xyz, neighbor_idx) # [B, npoint, nsample, C]
         B, N, C = xyz.shape
         neighbor_xyz_offsets = neighbor_xyz - new_xyz.view(B, num_ds_points, 1, C)

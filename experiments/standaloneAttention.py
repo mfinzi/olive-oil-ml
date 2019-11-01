@@ -22,7 +22,7 @@ config_spec = {'num_epochs':100,'loader_config':{'amnt_dev':500,'lab_BS':20,'amn
     'network':[pWideResNet],'net_config':{'depth':16,'widen_factor':10,'drop_rate':0},
     'opt_config': {'lr':[0.04],'optim':optim.SGD},
     'trainer_config':{'log_dir':lambda cfg: os.path.expanduser(f"~/tb-experiments/pointconv_{cfg['network']}_\
-                    larger_lr{cfg['opt_config']['lr']}/"),'log_args':{'timeFrac':1}}}
+                    larger_lr{cfg['opt_config']['lr']}/"),'log_args':{'timeFrac':.2}}}
 # config_spec = {'num_epochs':200,'loader_config':{'amnt_dev':5000,'lab_BS':50},
 #     'network':[colorEquivariantResnetpc],'net_config':{'k':8,'num_layers':6,'ksize':3.66},
 #     'opt_config': {'optim':optim.Adam,'lr':[.0003]},
