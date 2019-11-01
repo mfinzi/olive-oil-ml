@@ -77,7 +77,7 @@ class ModelNet40(Dataset,metaclass=Named):
         return len(self.labels)
     def default_aug_layers(self):
         subsample = Expression(lambda x: x[:,:,np.random.permutation(x.shape[-1])[:self.size]])
-        return nn.Sequential(subsample,augLayers.RandomZrotation(),augLayers.GaussianNoise(.02))#,augLayers.PointcloudScale())#
+        return nn.Sequential(subsample,augLayers.RandomZrotation())#,augLayers.GaussianNoise(.02))#,augLayers.PointcloudScale())#
 
 
 

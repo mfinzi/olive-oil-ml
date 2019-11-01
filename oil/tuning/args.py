@@ -3,7 +3,7 @@ import sys
 import numpy as np
 from .configGenerator import flatten, unflatten
 from oil.datasetup import *
-from oil.architectures.img_classifiers import *
+from oil.architectures import *
 from torch.optim import *
 
 def argupdated_config(cfg,parser=None):
