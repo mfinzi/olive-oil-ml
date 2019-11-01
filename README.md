@@ -1,3 +1,4 @@
+[![Maintainability](https://api.codeclimate.com/v1/badges/a99a88d28ad37a79dbf6/maintainability)](https://codeclimate.com/github/mfinzi/pristine-ml)
 # Oil
 
 Library for slowing down deep learning research. Some things are best enjoyed leisurely.
