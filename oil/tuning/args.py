@@ -2,7 +2,7 @@ import argparse
 import sys
 import numpy as np
 from .configGenerator import flatten, unflatten
-from oil.datasetup.datasets import *
+from oil.datasetup import *
 from oil.architectures.img_classifiers import *
 from torch.optim import *
 

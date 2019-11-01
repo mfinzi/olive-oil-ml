@@ -65,12 +65,38 @@ class GaussianNoise(nn.Module):
     
     def forward(self, x):
         if self.training:
-            zeros_ = torch.zeros(x.size()).cuda()
-            n = Variable(torch.normal(zeros_, std=self.std).cuda())
-            return x + n
+            return x + torch.randn_like(x)*self.std
         else:
             return x
 
+class PointcloudScale(nn.Module):
+    def __init__(self, r=1.25):
+        super().__init__()
+        self.r=r
+    def forward(self, x):
+        if self.training:
+            return x + self.r**torch.rand(x.shape[0]).to(x.device)[:,None,None] # one scale per example
+        else:
+            return x
+
+class RandomZrotation(nn.Module):
+    def __init__(self,max_angle=np.pi):
+        super().__init__()
+        self.max_angle = max_angle
+    def forward(self,x):
+        if self.training:
+            # this presumes z axis is coordinate 2?
+            # assumes x has shape B3N
+            bs,c,n = x.shape; assert c==3
+            angles = (2*torch.rand(bs)-1)*self.max_angle
+            R = torch.zeros(bs,3,3)
+            R[:,1,1] = 1
+            R[:,0,0] = R[:,2,2] = angles.cos()
+            R[:,0,2] = R[:,2,0] = angles.sin()
+            R[:,2,0] *=-1
+            return R.to(x.device)@x
+        else:
+            return x
 
 class RandomHorizontalFlip(nn.Module):
     """ Wraps RandomHorizontalFlip augmentation into a layer (during train)"""
