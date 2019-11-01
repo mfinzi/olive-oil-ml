@@ -1,4 +1,5 @@
-![Code Climate maintainability](https://img.shields.io/codeclimate/maintainability-percentage/mfinzi/pristine-ml)
+[![Code Climate maintainability](https://img.shields.io/codeclimate/maintainability-percentage/mfinzi/pristine-ml)]
+(https://codeclimate.com/github/mfinzi/pristine-ml)
 [![CodeClimate](http://img.shields.io/codeclimate/mfinzi/pristine-ml.svg?style=flat)](https://codeclimate.com/github/mfinzi/pristine-ml
 "CodeClimate")
 # Oil
