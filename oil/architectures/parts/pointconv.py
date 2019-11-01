@@ -333,7 +333,7 @@ class PointConvSetAbstraction(nn.Module):
         weights = self.weightnet(grouped_xyz)
         new_points = torch.matmul(input=new_points.permute(0, 3, 1, 2),
                         other = weights.permute(0, 3, 2, 1)).view(B, num_ds_points, -1)
-        new_points = self.linear(new_points).permute(0,2,1)
+        new_points = self.linear(new_points).permute(0,2,1)/min(self.nsample,xyz.shape[1])
         new_xyz = new_xyz.permute(0, 2, 1)
         return (new_xyz, new_points)
 

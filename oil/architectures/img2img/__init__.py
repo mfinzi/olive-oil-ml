@@ -4,6 +4,6 @@
 # from .fcn8s import FCN8s
 # from .fcn8s import FCN8sAtOnce
 # from .vgg import VGG16
-from .deeplab import DeepLab
+#from .deeplab import DeepLab
 #'FCDenseNet57', 'FCDenseNet67', 'FCDenseNet103'
-__all__ = ['DeepLab']
+#__all__ = ['DeepLab']
