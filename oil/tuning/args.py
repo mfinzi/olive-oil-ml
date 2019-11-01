@@ -20,6 +20,7 @@ def argupdated_config(cfg,parser=None):
         short_field_name = field.split('/')[-1]
         parser.add_argument('--'+short_field_name,default=value,help="(default: %(default)s)")
         clobbered_name_mapping[short_field_name] = field
+    parser.add_argument("--local_rank",type=int) # so that distributed will work
     args = parser.parse_args()
     for short_argname, argvalue in vars(args).items():
         if isinstance(argvalue,str):

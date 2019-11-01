@@ -16,7 +16,7 @@ def try_multigpu_parallelize(model,cfg,scalelr=False):
         assert torch.cuda.is_available(), "No GPUs found"
         ngpus = torch.cuda.device_count() # For Adam, only the bs is scaled up
         cfg['loader_config']['lab_BS']*= ngpus
-        cfg['loader_config']['num_workers']*= ngpus
+        #cfg['loader_config']['num_workers']*= ngpus
         if scalelr: cfg['opt_config']['lr']*= ngpus
         print(f"Discovered and training with {ngpus} GPUs, bs -> {ngpus}*bs{f', lr -> {ngpus}*lr' if scalelr else ''}.")
         torch.distributed.init_process_group(backend="nccl")
