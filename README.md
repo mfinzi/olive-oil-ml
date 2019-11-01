@@ -1,5 +1,5 @@
 [![Maintainability](https://api.codeclimate.com/v1/badges/a99a88d28ad37a79dbf6/maintainability)](https://codeclimate.com/github/mfinzi/pristine-ml)
-[![CodeClimate](http://img.shields.io/codeclimate/mfinzi/pristine-ml/pristine-ml.svg?style=flat)](https://codeclimate.com/github/mfinzi/pristine-ml
+[![CodeClimate](http://img.shields.io/codeclimate/mfinzi/pristine-ml.svg?style=flat)](https://codeclimate.com/github/mfinzi/pristine-ml
 "CodeClimate")
 
 # Oil
