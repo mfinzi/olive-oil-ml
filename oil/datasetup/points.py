@@ -12,6 +12,7 @@ from torch.utils.data import Dataset
 from oil.datasetup import augLayers
 from oil.utils.utils import Named, export, Expression
 from oil.architectures.parts import FarthestSubsample
+import torch_geometric
 warnings.filterwarnings('ignore')
 
 #ModelNet40 code adapted from 
@@ -78,6 +79,22 @@ class ModelNet40(Dataset,metaclass=Named):
     def default_aug_layers(self):
         subsample = Expression(lambda x: x[:,:,np.random.permutation(x.shape[-1])[:self.size]])
         return nn.Sequential(subsample,augLayers.RandomZrotation(),augLayers.GaussianNoise(.02))#,augLayers.PointcloudScale())#
+
+
+class MNISTSuperpixels(torch_geometric.datasets.MNISTSuperpixels):
+    ignored_index = -100
+    class_weights = None
+    balanced = True
+    num_classes = 10
+    # def __init__(self,*args,**kwargs):
+    #     super().__init__(*args,**kwargs)
+
+    def __getitem__(self,index):
+        datapoint = super().__getitem__(index)
+        coords = datapoint.pos.T # 2 x M array of coordinates
+        bchannel = datapoint.x.T # 1 x M array of blackwhite info
+        label = datapoint.y
+        return ((coords,bchannel),label)
 
 
 
