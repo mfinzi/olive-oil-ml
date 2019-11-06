@@ -127,11 +127,11 @@ class layer13pc(nn.Module,metaclass=Named):
     """
     pointconvnet
     """
-    def __init__(self, num_classes=10,k=64,ksize=3.66,num_layers=4,**kwargs):
+    def __init__(self, num_classes=10,k=64,ksize=3.66,num_layers=4,total_ds=1/256,**kwargs):
         super().__init__()
         self.num_classes = num_classes
         nbhd = int(np.round(ksize**2))
-        ds_fracs = 256**(-1/num_layers)
+        ds_fracs = total_ds**(1/num_layers)
         chs = np.round(logspace(k,4*k,num_layers+1)).astype(int)
         self.initial_conv = conv2d(3,k,1)
         self.net = nn.Sequential(
@@ -157,3 +157,24 @@ class PointConv3d(layer13pc):
         assert c==3, "expected points living in 3d"
         noise_input = torch.randn(bs,self.k,n).to(x.device)
         return self.net((x,noise_input))
+
+@export
+class PointConvVanilla(nn.Module):
+    def __init__(self,num_classes=40,xyz_dim=3):
+        super().__init__()
+        self.num_classes = num_classes
+        self.net = nn.Sequential(
+            pConvBNrelu(3,64,ds_frac=1/2,nbhd=32,xyz_dim=xyz_dim),
+            pConvBNrelu(64,128,ds_frac=1/2,nbhd=32,xyz_dim=xyz_dim),
+            pConvBNrelu(128,256,ds_frac=1/4,nbhd=32,xyz_dim=xyz_dim),
+            pConvBNrelu(256,512,ds_frac=1/2,nbhd=32,xyz_dim=xyz_dim),
+            Expression(lambda u:u[-1].mean(-1)),
+            nn.Linear(512,512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Dropout(.4),
+            nn.Linear(512,num_classes),
+        )
+
+    def forward(self,x):
+        return self.net((x,x))
