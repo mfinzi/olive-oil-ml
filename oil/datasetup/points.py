@@ -12,6 +12,7 @@ from torch.utils.data import Dataset
 from oil.datasetup import augLayers
 from oil.utils.utils import Named, export, Expression
 from oil.architectures.parts import FarthestSubsample
+import torch_geometric
 warnings.filterwarnings('ignore')
 
 #ModelNet40 code adapted from 
@@ -79,7 +80,54 @@ class ModelNet40(Dataset,metaclass=Named):
         subsample = Expression(lambda x: x[:,:,np.random.permutation(x.shape[-1])[:self.size]])
         return nn.Sequential(subsample,augLayers.RandomZrotation())#,augLayers.GaussianNoise(.02))#,augLayers.PointcloudScale())#
 
+@export
+class MNISTSuperpixels(torch_geometric.datasets.MNISTSuperpixels,metaclass=Named):
+    ignored_index = -100
+    class_weights = None
+    balanced = False
+    num_classes = 10
+    # def __init__(self,*args,**kwargs):
+    #     super().__init__(*args,**kwargs)
+    # coord scale is 0-25, std of unif [0-25] is 
+    def __getitem__(self,index):
+        datapoint = super().__getitem__(int(index))
+        coords = (datapoint.pos.T-13.5)/5 # 2 x M array of coordinates
+        bchannel = (datapoint.x.T-.1307)/0.3081 # 1 x M array of blackwhite info
+        label = int(datapoint.y.item())
+        return ((coords,bchannel),label)
+    def default_aug_layers(self):
+        return nn.Sequential()
 
+from oil.utils.utils import FixedNumpySeed
+import torchvision
+@export
+class RotMNIST(torchvision.datasets.MNIST,metaclass=Named):
+    ignored_index = -100
+    class_weights = None
+    balanced = False
+    num_classes = 10
+    def __init__(self,*args,dataseed=0,**kwargs):
+        super().__init__(*args,download=True,**kwargs)
+        xy = (np.mgrid[:28,:28]-13.5)/5
+        disk_cutout = xy[0]**2 +xy[1]**2 < 7
+        self.img_coords = torch.from_numpy(xy[:,disk_cutout]).float()
+        self.cutout_data = self.data[:,disk_cutout].unsqueeze(1)
+        with FixedNumpySeed(dataseed):
+            angles = torch.rand(len(self.data))*2*np.pi
+        R = torch.zeros(len(self.data),2,2)
+        R[:,0,0] = R[:,1,1] = angles.cos()
+        R[:,0,1] = R[:,1,0] = angles.sin()
+        R[:,1,0] *=-1
+        self.img_coords = R@self.img_coords
+
+    def __getitem__(self,index):
+        index = int(index)
+        pixel_vals = (self.cutout_data[index]-.1307)/0.3081
+        return ((self.img_coords[index],pixel_vals),self.targets[index].item())
+    def __len__(self):
+        return len(self.data)
+    def default_aug_layers(self):
+        return nn.Sequential()
 
 if __name__=='__main__':
     from mpl_toolkits import mplot3d

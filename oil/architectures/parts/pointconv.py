@@ -266,7 +266,7 @@ class WeightNet(nn.Module):
 import numbers
 
 @export
-class PointConvSetAbstraction(nn.Module):
+class PointConvSetAbstraction2(nn.Module):
     def __init__(self, ds_frac, nsample, in_channel, mlp, group_all,xyz_dim=3,knn_channels=None):
         super().__init__()
         cicm_co = 16
@@ -338,6 +338,107 @@ class PointConvSetAbstraction(nn.Module):
         return (new_xyz, new_points)
 
 @export
+class PointConvSetAbstraction(nn.Module):
+    def __init__(self, ds_frac, nsample, in_channel, mlp, group_all,xyz_dim=3,knn_channels=None):
+        super().__init__()
+        cicm_co = 16
+        self.knn_channels = knn_channels
+        self.nsample = nsample
+
+        self.weightnet = WeightNet(xyz_dim, cicm_co)
+        self.linear = nn.Linear(cicm_co * in_channel, mlp[-1])
+        #self.bn_linear = nn.BatchNorm1d(mlp[-1])
+        self.group_all = group_all
+
+        self.neighbor_lookup = {}
+        if isinstance(ds_frac,numbers.Number):
+            self.subsample = FarthestSubsample(ds_frac,knn_channels=knn_channels)
+        else:
+            self.subsample = ds_frac
+
+    def forward(self, inp):
+        """
+        Input:
+            xyz: input points position data, [B, C, N]
+            points: input points data, [B, D, N]
+        Return:
+            new_xyz: sampled points position data, [B, C, S]
+            new_points_concat: sample points feature data, [B, D', S]
+        """
+        
+        new_xyz = self.subsample(inp,coords_only=True)
+        xyz, points = inp
+        B = xyz.shape[0]
+        xyz = xyz.permute(0, 2, 1)
+        new_xyz = new_xyz.permute(0, 2, 1)
+        points = points.permute(0, 2, 1)
+        num_ds_points = new_xyz.shape[1]
+        neighbor_idx = knn_point(min(self.nsample,xyz.shape[1]),
+                    xyz[:,:,:self.knn_channels], new_xyz[:,:,:self.knn_channels])#self.neighbor_lookup[key]
+        neighbor_xyz = index_points(xyz, neighbor_idx) # [B, npoint, nsample, C]
+        B, N, C = xyz.shape
+        neighbor_xyz_offsets = neighbor_xyz - new_xyz.view(B, num_ds_points, 1, C)
+        new_points = index_points(points, neighbor_idx)
+        # new_xyz: sampled points position data, [B, npoint, C]
+        # new_points: sampled points data, [B, npoint, nsample, C]
+        new_points = new_points.permute(0, 3, 2, 1) # [B, C, nsample,npoint]
+
+        grouped_xyz = neighbor_xyz_offsets.permute(0, 3, 2, 1)
+        weights = self.weightnet(grouped_xyz)
+        new_points = torch.matmul(input=new_points.permute(0, 3, 1, 2),
+                        other = weights.permute(0, 3, 2, 1)).view(B, num_ds_points, -1)
+        new_points = self.linear(new_points).permute(0,2,1)/min(self.nsample,xyz.shape[1])
+        new_xyz = new_xyz.permute(0, 2, 1)
+        return (new_xyz, new_points)
+
+class Group(object):
+    def embed(self,g):
+        """ Compute a euclidean embedding of group element g that can be processed with
+            a neural network"""
+        raise NotImplementedError
+
+    def get_group_elem_and_weight(self,p1,p2):
+        """ Computes an embedded form of the group element that maps p1->p2
+            ie. g p1 = p2. p1 should have shape (*,c) and p2 shape (*,c)"""
+        raise NotImplementedError
+
+    def sample_origin_stabilizer_and_weight(self,group_elems):
+        """ Samples a stabilizer of the origin for each input, apply it
+            to the input group elements, and concatenate an embedding of it
+            to the output."""
+        raise NotImplementedError
+
+class T(Group):
+    def __init__(self,dim=2):
+        self.dim = dim
+    def get_group_elem_and_weight(self,p1,p2):
+        return p2-p1,1
+    def sample_origin_stabilizer_and_weight(self,group_elems):
+        """ Translation group has no stabilizers"""
+        return group_elems,1
+
+class SO(Group):
+    def __init__(self,dim=2):
+        self.dim=dim
+    def get_group_elem_and_weight(self,p1,p2):
+        normed_p1 = p1/p1.norm(p=2,dim=-1)
+        normed_p2 = p2/p2.norm(p=2,dim=-1)
+
+
+class GroupPointConv(PointConvSetAbstraction):
+    def __init__(self,chin, chout, nbhd, ds_frac, group):
+        super().__init__()
+    def forward(self,inp):
+        xyz, vals = inp
+        output_xyz = self.subsample(xyz)
+        #xyz (bs,n,c), new_xyz (bs,m,c) neighbor_xyz (bs,m,nbhd,c)
+        deltas = self.compute_deltas(xyz,output_xyz)# has shape B, N, nbhd, 2
+        group_elems = self.group.origin_stabilizer_sample(deltas)
+        kernel_weights = self.weightnet(group_elems)
+        convolved_vals = self.point_convolve(kernel_weights,vals)
+        return output_xyz, convolved_vals
+
+@export
 class both(nn.Module):
     def __init__(self,module1,module2):
         super().__init__()
@@ -402,27 +503,27 @@ class pBottleneck(nn.Module):
         #print(new_coords.shape,new_values.shape)
         return new_coords,new_values
 
-class FarthestSubsample(nn.Module):
-    def __init__(self,ds_frac=0.5,knn_channels=None):
-        super().__init__()
-        self.ds_frac = ds_frac
-        self.subsample_lookup = {}
-        self.knn_channels = knn_channels
-    def forward(self,x,coords_only=False):
-        # BCN representation assumed
-        coords,values = x
-        coords = coords.permute(0, 2, 1)
-        values = values.permute(0, 2, 1)
-        num_downsampled_points = int(np.round(coords.shape[1]*self.ds_frac))
-        key = pthash(coords[:,:,:self.knn_channels])
-        if key not in self.subsample_lookup:# or True:
-            #print("Cache miss")
-            self.subsample_lookup[key] = farthest_point_sample(coords, num_downsampled_points)
-        fps_idx = self.subsample_lookup[key]
-        new_coords = index_points(coords,fps_idx).permute(0, 2, 1)
-        if coords_only: return new_coords
-        new_values = index_points(values,fps_idx).permute(0, 2, 1)
-        return new_coords,new_values
+# class FarthestSubsample(nn.Module):
+#     def __init__(self,ds_frac=0.5,knn_channels=None):
+#         super().__init__()
+#         self.ds_frac = ds_frac
+#         self.subsample_lookup = {}
+#         self.knn_channels = knn_channels
+#     def forward(self,x,coords_only=False):
+#         # BCN representation assumed
+#         coords,values = x
+#         coords = coords.permute(0, 2, 1)
+#         values = values.permute(0, 2, 1)
+#         num_downsampled_points = int(np.round(coords.shape[1]*self.ds_frac))
+#         key = pthash(coords[:,:,:self.knn_channels])
+#         if key not in self.subsample_lookup:# or True:
+#             #print("Cache miss")
+#             self.subsample_lookup[key] = farthest_point_sample(coords, num_downsampled_points)
+#         fps_idx = self.subsample_lookup[key]
+#         new_coords = index_points(coords,fps_idx).permute(0, 2, 1)
+#         if coords_only: return new_coords
+#         new_values = index_points(values,fps_idx).permute(0, 2, 1)
+#         return new_coords,new_values
 
 def imagelike_nn_downsample(x,coords_only=False):
     coords,values = x
@@ -433,29 +534,56 @@ def imagelike_nn_downsample(x,coords_only=False):
     if coords_only: return ds_coords.view(bs,2,-1)
     return ds_coords.view(bs,2,-1), ds_values.view(bs,c,-1)
 
+def concat_coords(x):
+    bs,c,h,w = x.shape
+    coords = torch.stack(torch.meshgrid([torch.linspace(-1,1,h),torch.linspace(-1,1,w)]),dim=-1).view(h*w,2).unsqueeze(0).permute(0,2,1).repeat(bs,1,1).to(x.device)
+    inp_as_points = x.view(bs,c,h*w)
+    return (coords,inp_as_points)
+def uncat_coords(x):
+    bs,c,n = x[1].shape
+    h = w = int(np.sqrt(n))
+    return x[1].view(bs,c,h,w)
 
+@export
+def imgpConvBNrelu(in_channels,out_channels,**kwargs):
+    return nn.Sequential(
+        Expression(concat_coords),
+        PointConv(in_channels,out_channels,**kwargs),
+        Expression(uncat_coords),
+        nn.BatchNorm2d(out_channels),
+        nn.ReLU(),
+    )
 
 @export
 class pResBlock(nn.Module):
-    def __init__(self,in_channels,out_channels,drop_rate=0,stride=1,nbhd=3**2):
+    def __init__(self,in_channels,out_channels,drop_rate=0,stride=1,nbhd=3**2,xyz_dim=2):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
-        ds = 1 if stride==1 else imagelike_nn_downsample
+        if xyz_dim==2:
+            ds = 1 if stride==1 else imagelike_nn_downsample#
+        elif xyz_dim==3:
+            ds = 1 if stride==1 else .25
+            
         self.net = nn.Sequential(
             Pass(nn.BatchNorm1d(in_channels)),
             Pass(nn.ReLU()),
-            PointConv(in_channels,out_channels,nbhd=nbhd,ds_frac=1),
+            PointConv(in_channels,out_channels,nbhd=nbhd,
+            ds_frac=1 if xyz_dim==2 else np.sqrt(ds),xyz_dim=xyz_dim),
             Pass(nn.Dropout(p=drop_rate)),
             Pass(nn.BatchNorm1d(out_channels)),
             Pass(nn.ReLU()),
-            PointConv(out_channels,out_channels,nbhd=nbhd,ds_frac=ds),
+            PointConv(out_channels,out_channels,nbhd=nbhd,
+            ds_frac=ds if xyz_dim==2 else np.sqrt(ds),xyz_dim=xyz_dim),
         )
         self.shortcut = nn.Sequential()
         if in_channels!=out_channels:
             self.shortcut.add_module('conv',Pass(nn.Conv1d(in_channels,out_channels,1)))
         if stride!=1:
-            self.shortcut.add_module('ds',Expression(lambda a: imagelike_nn_downsample(a)))
+            if xyz_dim==2:
+                self.shortcut.add_module('ds',Expression(lambda a: imagelike_nn_downsample(a)))
+            elif xyz_dim==3:
+                self.shortcut.add_module('ds',FarthestSubsample(ds_frac=ds))
 
     def forward(self,x):
         res_coords,res_values = self.net(x)

@@ -160,9 +160,10 @@ def cleanup_cuda():
         torch.distributed.destroy_process_group()
 
 class train_trial(object):
-    def __init__(self,make_trainer,strict=True):
+    def __init__(self,make_trainer,strict=True,save=False):
         self.make_trainer = make_trainer
         self.strict=strict
+        self.save=save
     def __call__(self,cfg,i=None):
         try:
             if i is not None:
@@ -174,7 +175,7 @@ class train_trial(object):
             epochs = cfg['num_epochs'] if isinstance(cfg['num_epochs'],Iterable) else [cfg['num_epochs']]
             for portion in epochs:
                 outcome = trainer.train(portion)
-                cfg['saved_at'] = trainer.logger.save_object(trainer,
+                if self.save: cfg['saved_at'] = trainer.logger.save_object(trainer,
                                     suffix='checkpoints/c{}.trainer'.format(trainer.epoch))
         except Exception as e:
             if self.strict: raise
