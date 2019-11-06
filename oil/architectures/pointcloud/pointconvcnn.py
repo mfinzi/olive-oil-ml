@@ -249,4 +249,3 @@ class player13s(nn.Module,metaclass=Named):
 #         Pass(nn.BatchNorm1d(out_channels)),
 #         Pass(nn.ReLU())
 #     )
->>>>>>> 7512ae30c17127dcf72a715a922bf32b81958550
