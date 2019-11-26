@@ -11,15 +11,15 @@ from torch.utils.data.sampler import Sampler, SubsetRandomSampler
 #     unlabLoader = DataLoader(trainset,sampler=unlabSampler,batch_size=ul_BS,**kwargs)
 #     return unlabLoader
 
-def getLabLoader(trainset, lab_BS, amnt_labeled=1, amnt_dev=0, dataseed=0, balanced=True,**kwargs):
+def getLabLoader(trainset, lab_BS, amnt_lab=1, amnt_dev=0, dataseed=0, balanced=True,**kwargs):
     """ returns a dataloader of class balanced subset of the full dataset,
         and a (possibly empty) dataloader reserved for devset
         amntLabeled and amntDev can be a fraction or an integer.
         If fraction amntLabeled specifies fraction of entire dataset to
         use as labeled, whereas fraction amntDev is fraction of labeled
         dataset to reserve as a devset  """
-    numLabeled = amnt_labeled
-    if amnt_labeled <= 1: 
+    numLabeled = amnt_lab
+    if amnt_lab <= 1: 
         numLabeled *= len(trainset)
     numDev = amnt_dev
     if amnt_dev <= 1:

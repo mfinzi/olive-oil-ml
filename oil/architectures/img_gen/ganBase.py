@@ -4,6 +4,7 @@ from torch.nn.utils import spectral_norm
 import numpy as np
 from ...utils.utils import Expression,export,Named
 
+@export
 class GanBase(nn.Module,metaclass=Named):
 
     def __init__(self,z_dim,img_channels,num_classes=None):

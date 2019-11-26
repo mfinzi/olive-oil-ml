@@ -26,7 +26,6 @@ class Generator(GanBase):
             nn.Tanh())
 
         self.apply(xavier_uniform_init)
-        #self.apply(add_spectral_norm)
     def forward(self, z):
         return self.model(z)
 
@@ -48,82 +47,62 @@ class Discriminator(nn.Module):
             )
         self.apply(xavier_uniform_init)
         self.apply(add_spectral_norm)
-
+        # Spectral norm on discriminator but not generator
     def forward(self, x):
         return self.model(x)
 
 class ResBlockGenerator(nn.Module):
 
-    def __init__(self, in_channels, out_channels, stride=1):
-        super(ResBlockGenerator, self).__init__()
-
+    def __init__(self, in_ch, out_ch, stride=1):
+        super().__init__()
+        self.upsample = nn.Upsample(scale_factor=stride) if stride!=1 else nn.Sequential()
         self.model = nn.Sequential(
-            nn.BatchNorm2d(in_channels),
+            nn.BatchNorm2d(in_ch),
             nn.ReLU(),
-            nn.Upsample(scale_factor=2),
-            nn.Conv2d(in_channels, out_channels, 3, 1, padding=1),
-            nn.BatchNorm2d(out_channels),
+            self.upsample,
+            nn.Conv2d(in_ch, out_ch, 3, 1, padding=1),
+            nn.BatchNorm2d(out_ch),
             nn.ReLU(),
-            nn.Conv2d(out_channels, out_channels, 3, 1, padding=1)
+            nn.Conv2d(out_ch, out_ch, 3, 1, padding=1)
             )
-        self.bypass = nn.Sequential()
-        if stride != 1:
-            self.bypass = nn.Upsample(scale_factor=2)
+        self.bypass = nn.Conv2d(in_ch,out_ch,1,1,padding=0) if in_ch!=out_ch else nn.Sequential()
 
     def forward(self, x):
-        return self.model(x) + self.bypass(x)
+        return self.model(x) + self.bypass(self.upsample(x))
 
 
 class ResBlockDiscriminator(nn.Module):
 
-    def __init__(self, in_channels, out_channels, stride=1):
-        super(ResBlockDiscriminator, self).__init__()
-
-        if stride == 1:
-            self.model = nn.Sequential(
-                nn.ReLU(),
-                nn.Conv2d(in_channels, out_channels, 3, 1, padding=1),
-                nn.ReLU(),
-                nn.Conv2d(out_channels, out_channels, 3, 1, padding=1)
-                )
-        else:
-            self.model = nn.Sequential(
-                nn.ReLU(),
-                nn.Conv2d(in_channels, out_channels, 3, 1, padding=1),
-                nn.ReLU(),
-                nn.Conv2d(out_channels, out_channels, 3, 1, padding=1),
-                nn.AvgPool2d(2, stride=stride, padding=0)
-                )
-        self.bypass = nn.Sequential()
-        if stride != 1:
-
-            self.bypass = nn.Sequential(
-                nn.Conv2d(in_channels,out_channels, 1, 1, padding=0),
-                nn.AvgPool2d(2, stride=stride, padding=0)
+    def __init__(self, in_ch, out_ch, stride=1):
+        super().__init__()
+        self.model = nn.Sequential(
+            nn.ReLU(),
+            nn.Conv2d(in_ch, out_ch, 3, 1, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(out_ch, out_ch, 3, 1, padding=1)
             )
+        self.downsample = nn.AvgPool2d(2, stride=stride, padding=0) if stride!=1 else nn.Sequential()
+        self.bypass = nn.Conv2d(in_ch,out_ch,1,1,padding=0) if in_ch!=out_ch else nn.Sequential()
+        
     def forward(self, x):
-        return self.model(x) + self.bypass(x)
+        return self.downsample(self.model(x)) + self.downsample(self.bypass(x))
 
 # special ResBlock just for the first layer of the discriminator
 class FirstResBlockDiscriminator(nn.Module):
-
-    def __init__(self, in_channels, out_channels, stride=1):
-        super(FirstResBlockDiscriminator, self).__init__()
-
+    def __init__(self, in_ch, out_ch, stride=1):
+        super().__init__()
         # we don't want to apply ReLU activation to raw image before convolution transformation.
         self.model = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, 3, 1, padding=1),
+            #nn.ReLU(),
+            nn.Conv2d(in_ch, out_ch, 3, 1, padding=1),
             nn.ReLU(),
-            nn.Conv2d(out_channels, out_channels, 3, 1, padding=1),
-            nn.AvgPool2d(2)
+            nn.Conv2d(out_ch, out_ch, 3, 1, padding=1)
             )
-        self.bypass = nn.Sequential(
-            nn.AvgPool2d(2),
-            nn.Conv2d(in_channels, out_channels, 1, 1, padding=0),
-        )
-
+        self.downsample = nn.AvgPool2d(2, stride=stride, padding=0) if stride!=1 else nn.Sequential()
+        self.bypass = nn.Conv2d(in_ch,out_ch,1,1,padding=0) if in_ch!=out_ch else nn.Sequential()
+        
     def forward(self, x):
-        return self.model(x) + self.bypass(x)
+        return self.downsample(self.model(x)) + self.downsample(self.bypass(x))
 
 
 

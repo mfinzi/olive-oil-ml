@@ -4,7 +4,7 @@ from torch.nn import Parameter
 import torch.nn.functional as F
 import torch.nn as nn
 import torch.nn.init as init
-from oil.architectures.parts import PointConvSetAbstraction, pConvBNrelu, pBottleneck#,PointConvDensitySetAbstraction
+from oil.architectures.parts import pConvBNrelu, pBottleneck#,PointConvDensitySetAbstraction
 from oil.architectures.parts import pResBlock,Pass, imgpConvBNrelu
 import numpy as np
 from torch.nn.utils import weight_norm
@@ -22,7 +22,7 @@ class layer13pc(nn.Module,metaclass=Named):
     """
     pointconvnet
     """
-    def __init__(self, num_classes=10,k=64,ksize=3,num_layers=4,total_ds=1/256,**kwargs):
+    def __init__(self, num_classes=10,k=64,ksize=3.66,num_layers=4,total_ds=1/256,**kwargs):
         super().__init__()
         self.num_classes = num_classes
         nbhd = int(np.round(ksize**2))
@@ -59,6 +59,8 @@ class resnetpc(nn.Module,metaclass=Named):
         self.net = nn.Sequential(
             *[pBottleneck(chs[i],chs[i+1],ds_frac=ds_fracs,nbhd=nbhd,r=1,**kwargs) for i in range(num_layers)],
             Expression(lambda u:u[-1].mean(-1)),
+            nn.BatchNorm1d(64*k),
+            nn.ReLU(),
             nn.Linear(chs[-1],num_classes)
         )
 
@@ -119,7 +121,7 @@ class colorEquivariantLayer13pc(layer13pc):
         super().__init__(*args,xyz_dim=5,knn_channels=2,**kwargs)
     def forward(self,x):
         bs,c,h,w = x.shape
-        coords = torch.stack(torch.meshgrid([torch.linspace(-1,1,h),torch.linspace(-1,1,w)]),dim=-1).view(h*w,2).unsqueeze(0).permute(0,2,1).repeat(bs,1,1).to(x.device)
+        coords = torch.stack(torch.meshgrid([torch.linspace(-3,3,h),torch.linspace(-3,3,w)]),dim=-1).view(h*w,2).unsqueeze(0).permute(0,2,1).repeat(bs,1,1).to(x.device)
         coords_w_color = torch.cat([coords,x.view(bs,-1,h*w)],dim=1)
         inp_as_points = self.initial_conv(torch.randn_like(x)).view(bs,-1,h*w)
         return self.net((coords_w_color,inp_as_points))
@@ -130,7 +132,7 @@ class colorEquivariantResnetpc(resnetpc):
         super().__init__(*args,xyz_dim=5,knn_channels=2,**kwargs)
     def forward(self,x):
         bs,c,h,w = x.shape
-        coords = torch.stack(torch.meshgrid([torch.linspace(-1,1,h),torch.linspace(-1,1,w)]),dim=-1).view(h*w,2).unsqueeze(0).permute(0,2,1).repeat(bs,1,1).to(x.device)
+        coords = torch.stack(torch.meshgrid([torch.linspace(-3,3,h),torch.linspace(-3,3,w)]),dim=-1).view(h*w,2).unsqueeze(0).permute(0,2,1).repeat(bs,1,1).to(x.device)
         coords_w_color = torch.cat([coords,x.view(bs,-1,h*w)],dim=1)
         inp_as_points = self.initial_conv(torch.randn_like(x)).view(bs,-1,h*w)
         return self.net((coords_w_color,inp_as_points))
@@ -145,7 +147,7 @@ class PointConv3d(layer13pc):
     def forward(self,x):
         bs,c,n = x.shape
         assert c==3, "expected points living in 3d"
-        noise_input = torch.randn(bs,self.k,n).to(x.device)
+        noise_input = torch.zeros(bs,self.k,n).to(x.device)
         return self.net((x,noise_input))
 
 @export
@@ -183,11 +185,11 @@ class player13s(nn.Module,metaclass=Named):
             cbr(3,k),
             cbr(k,k),
             cbr(k,2*k),
-            nn.MaxPool2d(2),#MaxBlurPool(2*k),
+            nn.MaxPool2d(2),
             cbr(2*k,2*k),
             cbr(2*k,2*k),
             cbr(2*k,2*k),
-            nn.MaxPool2d(2),#MaxBlurPool(2*k),
+            nn.MaxPool2d(2),
             cbr(2*k,2*k),
             cbr(2*k,2*k),
             cbr(2*k,2*k),

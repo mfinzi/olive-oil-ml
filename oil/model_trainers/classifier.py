@@ -59,7 +59,8 @@ import collections
 import copy
 
 base_cfg = {'dataset': CIFAR10,'network':layer13,'net_config': {},
-        'loader_config': {'amnt_dev':500,'lab_BS':50, 'pin_memory':True,'num_workers':0},
+        'loader_config': {'amnt_dev':1000,'lab_BS':50, 'pin_memory':True,'num_workers':0,
+        'amnt_lab':1},
         'opt_config':{'optim':SGD,'lr':.1},
         'num_epochs':100,'trainer_config':{},
         }

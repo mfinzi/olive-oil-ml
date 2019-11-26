@@ -82,7 +82,7 @@ class Gan(Trainer):
         img_grid = vutils.make_grid(fake_images[:,:3], normalize=True)
         self.logger.add_image('fake_samples', img_grid, step)
         super().logStuff(step,minibatch)
-    
+
     def as_dataloader(self,N=5000,bs=64):
         return GanLoader(self.G,N,bs)
 

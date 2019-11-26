@@ -58,15 +58,26 @@ class ModelNet40(Dataset,metaclass=Named):
     class_weights = None
     balanced=False
     num_classes=40
-    def __init__(self,root_dir,train=True,transform=None,size=1024):
+    classes=['airplane', 'bathtub', 'bed', 'bench', 'bookshelf', 'bottle', 'bowl', 'car',
+        'chair', 'cone', 'cup', 'curtain', 'desk', 'door', 'dresser', 'flower_pot',
+        'glass_box', 'guitar', 'keyboard', 'lamp', 'laptop', 'mantel', 'monitor',
+        'night_stand', 'person', 'piano', 'plant', 'radio', 'range_hood', 'sink',
+        'sofa', 'stairs', 'stool', 'table', 'tent', 'toilet', 'tv_stand', 'vase',
+        'wardrobe', 'xbox']
+    default_root_dir = '~/datasets/ModelNet40/'
+    def __init__(self,root_dir=default_root_dir,train=True,transform=None,size=1024):
         super().__init__()
         #self.transform = torchvision.transforms.ToTensor() if transform is None else transform
-        train_x,train_y,test_x,test_y = load_data(
-            os.path.expanduser('~/datasets/ModelNet40/'),classification=True)
+        train_x,train_y,test_x,test_y = load_data(os.path.expanduser(root_dir),classification=True)
         self.coords = train_x if train else test_x
+        # SWAP y and z so that z (gravity direction) is in component 3
+        self.coords[...,2] += self.coords[...,1]
+        self.coords[...,1] = self.coords[...,2]-self.coords[...,1]
+        self.coords[...,2] -= self.coords[...,1]
         # N x m x 3
         self.labels = train_y if train else test_y
-        self.coords /= np.std(train_x,axis=(0,1))
+        self.coords_std = np.std(train_x,axis=(0,1))
+        self.coords /= self.coords_std
         self.coords = self.coords.transpose((0,2,1)) # B x n x c -> B x c x n
         self.size=size
         #pt_coords = torch.from_numpy(self.coords)
@@ -78,7 +89,7 @@ class ModelNet40(Dataset,metaclass=Named):
         return len(self.labels)
     def default_aug_layers(self):
         subsample = Expression(lambda x: x[:,:,np.random.permutation(x.shape[-1])[:self.size]])
-        return nn.Sequential(subsample,augLayers.RandomZrotation())#,augLayers.GaussianNoise(.02))#,augLayers.PointcloudScale())#
+        return nn.Sequential(subsample,augLayers.RandomZrotation(),augLayers.GaussianNoise(.01))#,augLayers.PointcloudScale())#
 
 @export
 class MNISTSuperpixels(torch_geometric.datasets.MNISTSuperpixels,metaclass=Named):
@@ -138,15 +149,24 @@ if __name__=='__main__':
     ax = plt.axes(projection='3d')
     
     i = 0
-    a = load_data(os.path.expanduser('~/datasets/ModelNet40/'))
+    # a = load_data(os.path.expanduser('~/datasets/ModelNet40/'))[0]
+    # a[...,2] += a[...,1]
+    # a[...,1] = a[...,2]-a[...,1]
+    # a[...,2] -= a[...,1]
+    D = ModelNet40()
     def update_plot(e):
         global i
         if e.key == "right": i+=1
         elif e.key == "left": i-=1
         else:return
         ax.cla()
-        d = a[0][i].T
-        ax.scatter(d[0],d[2],d[1],c=d[1])
+        xyz,label = D[i]#.T
+        x,y,z = xyz.numpy()*D.coords_std[:,None]
+        # d[2] += d[1]
+        # d[1] = d[2]-d[1]
+        # d[2] -= d[1]
+        ax.scatter(x,y,z,c=z)
+        ax.text2D(0.05, 0.95, D.classes[label], transform=ax.transAxes)
         #ax.contour3D(d[0],d[2],d[1],cmap='viridis',edgecolor='none')
         ax.set_xlim3d(-1,1)
         ax.set_ylim3d(-1,1)

@@ -21,7 +21,7 @@ class GraphSSL(BaseEstimator,ClassifierMixin,metaclass=ABCMeta):
         elif kernel=='rbf': self.kernel = partial(rbf_kernel,gamma=gamma)
         elif callable(kernel): self.kernel = kernel
         else: raise NotImplementedError(f"Unknown kernel {kernel}")
-        self.reg=1
+        self.reg=reg
 
     def fit(self,X,y):
         """ Assumes y is -1 for unlabeled """

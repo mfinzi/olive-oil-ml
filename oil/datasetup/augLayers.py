@@ -90,10 +90,10 @@ class RandomZrotation(nn.Module):
             bs,c,n = x.shape; assert c==3
             angles = (2*torch.rand(bs)-1)*self.max_angle
             R = torch.zeros(bs,3,3)
-            R[:,1,1] = 1
-            R[:,0,0] = R[:,2,2] = angles.cos()
-            R[:,0,2] = R[:,2,0] = angles.sin()
-            R[:,2,0] *=-1
+            R[:,2,2] = 1
+            R[:,0,0] = R[:,1,1] = angles.cos()
+            R[:,0,1] = R[:,1,0] = angles.sin()
+            R[:,1,0] *=-1
             return R.to(x.device)@x
         else:
             return x

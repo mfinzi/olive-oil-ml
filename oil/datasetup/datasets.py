@@ -28,7 +28,6 @@ class EasyIMGDataset(Dataset,metaclass=Named):
             normalize = transforms.Normalize(self.means, self.stds)
         transform = transforms.Compose([transforms.ToTensor(),normalize])
         return transform
-
     # def compute_default_transform(self):
     #     raise NotImplementedError
 

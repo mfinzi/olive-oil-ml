@@ -10,4 +10,4 @@ if __name__=="__main__":
     thestudy.run(ordered=False)
     covars = thestudy.covariates()#
     covars['Dev_Acc'] = thestudy.outcomes['Dev_Acc'].values
-    print(covars.drop(['log_suffix','saved_at'],axis=1))
+    print(covars.drop(['log_suffix'],axis=1))

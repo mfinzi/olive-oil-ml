@@ -9,6 +9,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 from time import time
 import numpy as np
+import string
+from mpl_toolkits import mplot3d
+import matplotlib
+matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
+
 from sklearn.neighbors.kde import KernelDensity
 from ...utils.utils import Expression,export,Named
 from ..parts import conv2d
@@ -111,8 +117,16 @@ def knn_point(nsample, xyz, new_xyz):
     Return:
         group_idx: grouped points index, [B, S, nsample]
     """
+    
     sqrdists = square_distance(new_xyz, xyz)
     _, group_idx = torch.topk(sqrdists, nsample, dim = -1, largest=False, sorted=False)
+    if torch.any(group_idx>10000):
+        print("greater than 10k :(")
+        print(xyz.shape)
+        print(new_xyz.shape)
+        print(xyz[0])
+        print(new_xyz[0])
+        raise Exception
     return group_idx
 
 def sample_and_group(npoint, nsample, xyz, points, density_scale = None):
@@ -175,11 +189,11 @@ class FarthestSubsample(nn.Module):
         coords = coords.permute(0, 2, 1)
         values = values.permute(0, 2, 1)
         num_downsampled_points = int(np.round(coords.shape[1]*self.ds_frac))
-        key = pthash(coords[:,:,:self.knn_channels])
+        #key = pthash(coords[:,:,:self.knn_channels])
         #if key not in self.subsample_lookup:# or True:
             #print("Cache miss")
         #    self.subsample_lookup[key] = farthest_point_sample(coords, num_downsampled_points)
-        fps_idx = farthest_point_sample(coords, num_downsampled_points)#self.subsample_lookup[key]
+        fps_idx = farthest_point_sample(coords[:,:,:self.knn_channels], num_downsampled_points)#self.subsample_lookup[key]
         new_coords = index_points(coords,fps_idx).permute(0, 2, 1)
         if coords_only: return new_coords
         new_values = index_points(values,fps_idx).permute(0, 2, 1)
@@ -236,7 +250,7 @@ class DensityNet(nn.Module):
 
 class WeightNet(nn.Module):
 
-    def __init__(self, in_channel, out_channel, hidden_unit = [8, 8]):
+    def __init__(self, in_channel, out_channel, hidden_unit = (8, 8)):
         super(WeightNet, self).__init__()
 
         self.mlp_convs = nn.ModuleList()
@@ -265,178 +279,355 @@ class WeightNet(nn.Module):
 
 import numbers
 
-@export
-class PointConvSetAbstraction2(nn.Module):
-    def __init__(self, ds_frac, nsample, in_channel, mlp, group_all,xyz_dim=3,knn_channels=None):
-        super().__init__()
-        cicm_co = 16
-        self.knn_channels = knn_channels
-        self.nsample = nsample
-        self.mlp_convs = nn.ModuleList()
-        self.mlp_bns = nn.ModuleList()
-        last_channel = in_channel
-        for out_channel in mlp:
-            self.mlp_convs.append(nn.Conv2d(last_channel, out_channel, 1))
-            self.mlp_bns.append(nn.BatchNorm2d(out_channel))
-            last_channel = out_channel
+class Group(object,metaclass=Named):
+    def embed(self):
 
-        self.weightnet = WeightNet(xyz_dim, cicm_co)
-        self.linear = nn.Linear(cicm_co * mlp[-1], mlp[-1])
-        self.bn_linear = nn.BatchNorm1d(mlp[-1])
-        self.group_all = group_all
-
-        self.neighbor_lookup = {}
-        if isinstance(ds_frac,numbers.Number):
-            self.subsample = FarthestSubsample(ds_frac,knn_channels=knn_channels)
-        else:
-            self.subsample = ds_frac
-
-    def forward(self, inp):
-        """
-        Input:
-            xyz: input points position data, [B, C, N]
-            points: input points data, [B, D, N]
-        Return:
-            new_xyz: sampled points position data, [B, C, S]
-            new_points_concat: sample points feature data, [B, D', S]
-        """
-        
-        new_xyz = self.subsample(inp,coords_only=True)
-        xyz, points = inp
-        B = xyz.shape[0]
-        xyz = xyz.permute(0, 2, 1)
-        new_xyz = new_xyz.permute(0, 2, 1)
-        points = points.permute(0, 2, 1)
-        num_ds_points = new_xyz.shape[1]
-        key = pthash(xyz[:,:,:self.knn_channels])
-        #print(xyz.shape,new_xyz.shape)
-        #assert False
-        # if key not in self.neighbor_lookup:# or True:
-        #     #print("Cache miss")
-        #     self.neighbor_lookup[key] = knn_point(min(self.nsample,xyz.shape[1]),
-        #             xyz[:,:,:self.knn_channels], new_xyz[:,:,:self.knn_channels])
-        neighbor_idx = knn_point(min(self.nsample,xyz.shape[1]),
-                    xyz[:,:,:self.knn_channels], new_xyz[:,:,:self.knn_channels])#self.neighbor_lookup[key]
-        neighbor_xyz = index_points(xyz, neighbor_idx) # [B, npoint, nsample, C]
-        B, N, C = xyz.shape
-        neighbor_xyz_offsets = neighbor_xyz - new_xyz.view(B, num_ds_points, 1, C)
-        new_points = index_points(points, neighbor_idx)
-        #new_xyz, new_points, grouped_xyz_norm, _ = sample_and_group(self.npoint, self.nsample, xyz, points)
-        # new_xyz: sampled points position data, [B, npoint, C]
-        # new_points: sampled points data, [B, npoint, nsample, C+D]
-        new_points = new_points.permute(0, 3, 2, 1) # [B, C+D, nsample,npoint]
-        for i, conv in enumerate(self.mlp_convs):
-            bn = self.mlp_bns[i]
-            new_points =  F.relu(bn(conv(new_points)))
-
-        grouped_xyz = neighbor_xyz_offsets.permute(0, 3, 2, 1)
-        weights = self.weightnet(grouped_xyz)
-        new_points = torch.matmul(input=new_points.permute(0, 3, 1, 2),
-                        other = weights.permute(0, 3, 2, 1)).view(B, num_ds_points, -1)
-        new_points = self.linear(new_points).permute(0,2,1)/min(self.nsample,xyz.shape[1])
-        new_xyz = new_xyz.permute(0, 2, 1)
-        return (new_xyz, new_points)
-
-@export
-class PointConvSetAbstraction(nn.Module):
-    def __init__(self, ds_frac, nsample, in_channel, mlp, group_all,xyz_dim=3,knn_channels=None):
-        super().__init__()
-        cicm_co = 16
-        self.knn_channels = knn_channels
-        self.nsample = nsample
-
-        self.weightnet = WeightNet(xyz_dim, cicm_co)
-        self.linear = nn.Linear(cicm_co * in_channel, mlp[-1])
-        #self.bn_linear = nn.BatchNorm1d(mlp[-1])
-        self.group_all = group_all
-
-        self.neighbor_lookup = {}
-        if isinstance(ds_frac,numbers.Number):
-            self.subsample = FarthestSubsample(ds_frac,knn_channels=knn_channels)
-        else:
-            self.subsample = ds_frac
-
-    def forward(self, inp):
-        """
-        Input:
-            xyz: input points position data, [B, C, N]
-            points: input points data, [B, D, N]
-        Return:
-            new_xyz: sampled points position data, [B, C, S]
-            new_points_concat: sample points feature data, [B, D', S]
-        """
-        
-        new_xyz = self.subsample(inp,coords_only=True)
-        xyz, points = inp
-        B = xyz.shape[0]
-        xyz = xyz.permute(0, 2, 1)
-        new_xyz = new_xyz.permute(0, 2, 1)
-        points = points.permute(0, 2, 1)
-        num_ds_points = new_xyz.shape[1]
-        neighbor_idx = knn_point(min(self.nsample,xyz.shape[1]),
-                    xyz[:,:,:self.knn_channels], new_xyz[:,:,:self.knn_channels])#self.neighbor_lookup[key]
-        neighbor_xyz = index_points(xyz, neighbor_idx) # [B, npoint, nsample, C]
-        B, N, C = xyz.shape
-        neighbor_xyz_offsets = neighbor_xyz - new_xyz.view(B, num_ds_points, 1, C)
-        new_points = index_points(points, neighbor_idx)
-        # new_xyz: sampled points position data, [B, npoint, C]
-        # new_points: sampled points data, [B, npoint, nsample, C]
-        new_points = new_points.permute(0, 3, 2, 1) # [B, C, nsample,npoint]
-
-        grouped_xyz = neighbor_xyz_offsets.permute(0, 3, 2, 1)
-        weights = self.weightnet(grouped_xyz)
-        new_points = torch.matmul(input=new_points.permute(0, 3, 1, 2),
-                        other = weights.permute(0, 3, 2, 1)).view(B, num_ds_points, -1)
-        new_points = self.linear(new_points).permute(0,2,1)/min(self.nsample,xyz.shape[1])
-        new_xyz = new_xyz.permute(0, 2, 1)
-        return (new_xyz, new_points)
-
-class Group(object):
-    def embed(self,g):
         """ Compute a euclidean embedding of group element g that can be processed with
             a neural network"""
         raise NotImplementedError
 
-    def get_group_elem_and_weight(self,p1,p2):
+    def extract_embedded_group_elem(self,p1,p2):
         """ Computes an embedded form of the group element that maps p1->p2
             ie. g p1 = p2. p1 should have shape (*,c) and p2 shape (*,c)"""
         raise NotImplementedError
 
-    def sample_origin_stabilizer_and_weight(self,group_elems):
+    def sample_origin_stabilizer(self,group_elems):
         """ Samples a stabilizer of the origin for each input, apply it
             to the input group elements, and concatenate an embedding of it
             to the output."""
         raise NotImplementedError
 
+class LieGroup(Group):
+    @staticmethod
+    def exp(A):
+        raise NotImplementedError
+    @staticmethod
+    def log(A):
+        raise NotImplementedError
+    # @staticmethod
+    # def embed(g):
+    #     logg = g.log(g)
+    #     return logg.view(*logg.shape[:-2],-1)
+
+class GroupElem(object):
+    def __matmul__(self,g):
+        raise NotImplementedError
+
 class T(Group):
-    def __init__(self,dim=2):
-        self.dim = dim
-    def get_group_elem_and_weight(self,p1,p2):
-        return p2-p1,1
-    def sample_origin_stabilizer_and_weight(self,group_elems):
+    def __init__(self,dim):
+        self.embed_dim=dim
+    @staticmethod
+    def extract_embedded_group_elem(p1,p2):
+        return p1-p2, 0, 0
+    @staticmethod
+    def sample_origin_stabilizer(group_elems):
         """ Translation group has no stabilizers"""
-        return group_elems,1
-
-class SO(Group):
-    def __init__(self,dim=2):
-        self.dim=dim
-    def get_group_elem_and_weight(self,p1,p2):
-        normed_p1 = p1/p1.norm(p=2,dim=-1)
-        normed_p2 = p2/p2.norm(p=2,dim=-1)
+        return group_elems
 
 
-class GroupPointConv(PointConvSetAbstraction):
-    def __init__(self,chin, chout, nbhd, ds_frac, group):
+# Hodge star on R3
+def cross_matrix(k):
+    """Application of hodge star on R3, mapping Λ^1 R3 -> Λ^2 R3"""
+    K = torch.zeros(*k.shape,3).to(k.device)
+    K[...,0,1] = -k[...,2]
+    K[...,0,2] = k[...,1]
+    K[...,1,0] = k[...,2]
+    K[...,1,2] = -k[...,0]
+    K[...,2,0] = -k[...,1]
+    K[...,2,1] = k[...,0]
+    return K
+
+def uncross_matrix(K):
+    """Application of hodge star on R3, mapping Λ^2 R3 -> Λ^1 R3"""
+    k = torch.zeros(*K.shape[:-1]).to(K.device)
+    k[...,0] = K[...,2,1]
+    k[...,1] = K[...,0,2]
+    k[...,2] = K[...,1,0]
+    return k
+@export
+class SO3(LieGroup):
+    """ Use the rodriguez formula representation. I could just use
+        the lie algebra representation, but this has the problem of not
+        dealing with wraparounds well: \theta = 2pi,0."""
+    embed_dim = 3
+    @staticmethod
+    def sample_origin_stabilizer(deltas):
+        #k = torch.randn_like(deltas) # (bs,n,nbhd,3)
+        #k = torch.randn(*deltas.shape[:-2],1,3).to(deltas.device)
+        #k /= k.norm(dim=-1,keepdim=True)
+        k = torch.zeros_like(deltas)
+        k[...,2]=1.
+        #thetas = (torch.rand(*deltas.shape[:-1],1,1).to(deltas.device)*2-1)*np.pi
+        thetas = (torch.rand(*deltas.shape[:-2],1,1,1).to(deltas.device)*2-1)*np.pi
+        K = cross_matrix(k)
+        R = SO3.exp(K,thetas)
+        # Embed rotated deltas, and the rotation
+        embedding = torch.zeros(*deltas.shape[:-1],3+SO3.embed_dim).to(deltas.device)
+        embedding[...,:3] = (R@deltas.unsqueeze(-1)).squeeze(-1)
+        embedding[...,3:] = .1*k*thetas.squeeze(-1)#SO3.embed(R)
+        return embedding
+    @staticmethod
+    def embed(R):
+        return uncross_matrix(SO3.log(R))
+    @staticmethod
+    def exp(K,theta=None):
+        """ Rodriguez's formula"""
+        if theta is None:
+            theta = torch.sqrt((K*K).sum(-2,keepdim=True).sum(-1,keepdim=True)/2)
+            K = K/theta.clamp(min=1e-5)
+        sin,cos = theta.sin(),theta.cos()
+        I = torch.eye(3).to(K.device)
+        Rs = I + sin*K + (1-cos)*(K@K)
+        return Rs
+    @staticmethod
+    def log(R):
+        otherdims = len(R.shape)-2
+        placeholders = string.ascii_lowercase[1:otherdims+1]
+        trR = torch.einsum(f'{placeholders}aa -> {placeholders}',R)
+        theta = torch.acos((trR-1)/2)
+        pm = theta.sign()
+        theta *= pm
+        logR = theta[...,None,None]*(R-R.transpose(-1,-2))/(2*theta.sin().clamp(min=1e-5)[...,None,None])
+        return logR
+    @staticmethod
+    def extract_group_elem(p1,p2):
+        normed_p1 = p1/p1.norm(dim=-1,keepdim=True)
+        normed_p2 = p2/p2.norm(dim=-1,keepdim=True)
+        # p1 cross p2 gives k
+        orthogonal_vector = (cross_matrix(normed_p1)@normed_p2.unsqueeze(-1)).squeeze()
+        angle = torch.acos((normed_p1*normed_p2).sum(-1).sqrt())[...,None,None]
+        R = SO3.exp(K,angle)
+        return R, R@p1, p2#TODO: check that it is not negative of the angle
+
+@export
+class SO2(LieGroup):
+    embed_dim = 2
+    @staticmethod
+    def sample_origin_stabilizer(deltas):
+        thetas = (torch.rand(*deltas.shape[:-2],1).to(deltas.device)*2-1)*np.pi
+        R = torch.zeros(*deltas.shape,SO2.embed_dim).to(deltas.device)
+        sin,cos = thetas.sin(),thetas.cos()
+        R[...,0,0] = cos
+        R[...,1,1] = cos
+        R[...,0,1] = -sin
+        R[...,1,0] = sin
+        embedding = torch.zeros(*deltas.shape[:-1],2+SO2.embed_dim).to(deltas.device)
+        embedding[...,:2] = (R@deltas.unsqueeze(-1)).squeeze(-1)
+        embedding[...,2] = .1*cos
+        embedding[...,3] = .1*sin
+        return embedding
+
+@export
+class RGBscale(LieGroup):
+    embed_dim=1
+    @staticmethod
+    def sample_origin_stabilizer(deltas):
+        logr = torch.randn(*deltas.shape[:-2],1).to(deltas.device)
+        embedding = torch.zeros(*deltas.shape[:-1],5+1).to(deltas.device)
+        embedding[...,:2] = torch.exp(logr)*deltas
+        embedding[...,2] = logr
+        return embedding
+
+@export
+class Trivial(LieGroup):
+    embed_dim = 0
+    @staticmethod
+    def sample_origin_stabilizer(deltas):
+        return deltas
+
+@export
+class Coordinates(nn.Module,metaclass=Named):
+    __name__ = "Coordinates"
+    def __init__(self):
         super().__init__()
-    def forward(self,inp):
-        xyz, vals = inp
-        output_xyz = self.subsample(xyz)
+        self.embed_dim=0
+    def forward(self,x):
+        return x
+#     def __str__(self):
+#         return str(type(self))
+#     def __repr__(self):
+#         return repr(type(self))
+# C = Coordinates()
+@export
+class LogPolar(Coordinates):
+    def __init__(self,include_xy=False):
+        super().__init__()
+        self.include_xy = include_xy
+        self.embed_dim = (2 if include_xy else 0)
+
+    def forward(self,xy):
+        r = xy.norm(dim=-1).unsqueeze(-1)
+        theta = torch.atan2(xy[...,1],xy[...,0]).unsqueeze(-1)
+        features = (r.log(),theta)
+        if self.include_xy: features += (xy,)
+        return torch.cat(features,dim=-1)
+
+@export
+class LogCylindrical(Coordinates):
+    def __init__(self,include_xy=False):
+        super().__init__()
+        self.include_xy = include_xy
+        self.embed_dim = (3 if include_xy else 0)
+
+    def forward(self,xy):
+        r = xy[...,:2].norm(dim=-1).unsqueeze(-1)
+        theta = torch.atan2(xy[...,1],xy[...,0]).unsqueeze(-1)
+        z = xy[...,2].unsqueeze(-1)
+        features = (r.log(),theta,z)
+        if self.include_xy: features += (xy,)
+        return torch.cat(features,dim=-1)
+
+@export
+class LearnableCoordmap(Coordinates):
+    def __init__(self,outdim=2,indim=2):
+        super().__init__()
+        self.embed_dim = outdim
+        self.net = nn.Sequential(
+            nn.Linear(indim,24),
+            nn.ReLU(),
+            nn.Linear(24,24),
+            nn.ReLU(),
+            nn.Linear(24,outdim)
+        )
+    def forward(self,xy):
+        return torch.cat((xy,self.net(xy)),dim=-1)
+
+class PointConvBase(nn.Module):
+    def __init__(self,chin,chout,nbhd=32,xyz_dim=3,knn_channels=None):
+        super().__init__()
+        self.chin = chin
+        self.cicm_co = 16
+        self.xyz_dim = xyz_dim
+        self.knn_channels = knn_channels
+        self.nbhd = nbhd
+        self.weightnet = WeightNet(xyz_dim, self.cicm_co,hidden_unit = (32, 32))
+        self.linear = nn.Linear(self.cicm_co * chin, chout)
+        # if isinstance(ds_frac,numbers.Number):
+        #     self.subsample = FarthestSubsample(ds_frac,knn_channels=knn_channels)
+        # else:
+        #     self.subsample = ds_frac
+    def extract_neighborhood(self,inp_xyz,inp_vals,query_xyz):
+        #print(inp_xyz.shape)
+        neighbor_idx = knn_point(min(self.nbhd,inp_xyz.shape[1]),
+                    inp_xyz[:,:,:self.knn_channels], query_xyz[:,:,:self.knn_channels])#self.neighbor_lookup[key]
+        nidx = neighbor_idx.cpu().data.numpy()
+        neighbor_xyz = index_points(inp_xyz, neighbor_idx) # [B, npoint, nsample, C]
+        try:
+            nidx2 = neighbor_idx.cpu().data.numpy()
+            neighbor_values = index_points(inp_vals, neighbor_idx)
+        except Exception as e:
+            print("Exception here")
+            print(inp_vals.shape)
+            print(nidx.shape)
+            print(nidx)
+            print(nidx2)
+            raise e
+        return neighbor_xyz, neighbor_values # (bs,n,nbhd,c)
+
+    def compute_deltas(self,output_xyz,neighbor_xyz):
+        return neighbor_xyz - output_xyz.unsqueeze(2)
+
+    def point_convolve(self,embedded_group_elems,nbhd_vals):
+        """ embedded_group_elems: (bs,n,nbhd,gc)
+            vals: (bs,n,nbhd,c)"""
+        bs,n,nbhd,c = nbhd_vals.shape
+        # has shape (bs,n,nbhd,8)
+        penult_kernel_weights = self.weightnet(embedded_group_elems.permute(0, 3, 2, 1)).permute(0, 3, 2, 1)
+        # (bs,n,nbhd,c) -> (bs,n,c,nbhd)                                              #should be c*8
+        partial_convolved_vals = torch.matmul(nbhd_vals.permute(0, 1, 3, 2),penult_kernel_weights).view(bs, n, -1) 
+        convolved_vals = self.linear(partial_convolved_vals)/min(n,nbhd)
+        return convolved_vals
+
+    def get_embedded_group_elems(self,nbhd_xyz,output_xyz):
+        return nbhd_xyz - output_xyz
+    def forward(self,inp,query_xyz):
+        """inputs and outputs [xyz (bs,n,3)], [vals (bs,n,c)]"""
         #xyz (bs,n,c), new_xyz (bs,m,c) neighbor_xyz (bs,m,nbhd,c)
-        deltas = self.compute_deltas(xyz,output_xyz)# has shape B, N, nbhd, 2
-        group_elems = self.group.origin_stabilizer_sample(deltas)
-        kernel_weights = self.weightnet(group_elems)
-        convolved_vals = self.point_convolve(kernel_weights,vals)
-        return output_xyz, convolved_vals
+        inp_xyz,inp_vals = inp
+        nbhd_xyz,nbhd_vals = self.extract_neighborhood(inp_xyz,inp_vals,query_xyz)
+        deltas = self.get_embedded_group_elems(nbhd_xyz,query_xyz.unsqueeze(2))
+        convolved_vals = self.point_convolve(deltas,nbhd_vals)
+        return convolved_vals
+
+@export
+class LearnedSubsample(nn.Module):
+    def __init__(self,ds_frac=0.5,nbhd=24,knn_channels=None,xyz_dim=3,chin=64,**kwargs):
+        super().__init__()
+        self.ds_frac = ds_frac
+        self.knn_channels = knn_channels
+        self.mapping = PointConvBase(chin,xyz_dim,nbhd,xyz_dim,knn_channels,**kwargs)
+    def forward(self,x,coords_only=False):
+        # BCN representation assumed
+        coords,values = x
+        if self.ds_frac==1:
+            if coords_only: return coords
+            else: return x
+        coords = coords
+        values = values
+        num_downsampled_points = int(np.round(coords.shape[1]*self.ds_frac))
+        #key = pthash(coords[:,:,:self.knn_channels])
+        #if key not in self.subsample_lookup:# or True:
+            #print("Cache miss")
+        #    self.subsample_lookup[key] = farthest_point_sample(coords, num_downsampled_points)
+        fps_idx = farthest_point_sample(coords, num_downsampled_points)#self.subsample_lookup[key]
+
+        new_coords = index_points(coords,fps_idx)
+        new_values = index_points(values,fps_idx)
+        self.inp_coords = new_coords[0].cpu().data.numpy()
+        #print(new_values.shape,new_coords.shape)
+        offset = .03*self.mapping(x,new_coords)
+        self.offset = offset[0].cpu().data.numpy()
+        new_coords = new_coords + offset
+        self.out_coords = new_coords[0].cpu().data.numpy()
+        if coords_only: return new_coords
+        
+        return new_coords,new_values
+    # def log_data(self,logger,step,name):
+    #     #print("log_data called")
+    #     fig = plt.figure()
+    #     ax = plt.axes(projection='3d')
+    #     x,y,z = self.inp_coords.T
+    #     dx,dy,dz = self.offset.T
+    #     ax.cla()
+    #     ax.scatter(x,y,z,c=z)
+    #     ax.quiver(x,y,z,dx,dy,dz)#,length = mag)
+    #     #ax.scatter(xp,yp,zp,c=zp)
+    #     fig.canvas.draw()
+    #     plt.show()
+
+
+@export
+class SO2xT2(LieGroup):
+    embed_dim = 3
+    def farthest_sample(inp):
+        """ Assumes input is in T2 """
+        pass
+
+class GroupPointConv(PointConvBase):
+    def __init__(self,*args,group=Trivial,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.group = group
+        self.weightnet = WeightNet(self.xyz_dim+self.group.embed_dim, self.cicm_co,hidden_unit = (32, 32))
+
+    def get_embedded_group_elems(self,nbhd_xyz,output_xyz):
+        deltas = nbhd_xyz - output_xyz
+        embedded_group_elems = self.group.sample_origin_stabilizer(deltas)
+        return embedded_group_elems
+
+
+class GroupPointConvV2(PointConvBase):
+    def __init__(self,*args,group=Trivial,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.group = group
+        self.weightnet = WeightNet(self.group.embed_dim, self.cicm_co,hidden_unit = (32, 32))
+
+class CoordinatePointConv(PointConvBase):
+    def __init__(self,*args,coordmap=Coordinates(),**kwargs):
+        super().__init__(*args,**kwargs)
+        self.coordmap = coordmap
+        self.weightnet = WeightNet(self.xyz_dim+self.coordmap.embed_dim, self.cicm_co,hidden_unit = (32, 32))
+    def get_embedded_group_elems(self,nbhd_xyz,output_xyz):
+        return self.coordmap(nbhd_xyz) - self.coordmap(output_xyz)
 
 @export
 class both(nn.Module):
@@ -456,15 +647,20 @@ class Pass(nn.Module):
     def forward(self,x):
         c,y = x
         return c, self.module(y)
-
-def PointConv(in_channels,out_channels,nbhd=9,ds_frac=1,bandwidth=0.1,xyz_dim=2,knn_channels=None):
-    mlp_channels = [out_channels//4,out_channels//2,out_channels]
-    # return PointConvDensitySetAbstraction(
-    #         npoint=npoint, nsample=nbhd, in_channel=in_channels,
-    #         mlp=mlp_channels, bandwidth = bandwidth, group_all=False,xyz_dim=2)
-    return PointConvSetAbstraction(
-            ds_frac=ds_frac, nsample=nbhd, in_channel=in_channels,
-            mlp=mlp_channels, group_all=False,xyz_dim=xyz_dim,knn_channels=knn_channels)
+@export
+class PointConv(nn.Module):
+    def __init__(self,in_channels,out_channels,nbhd=9,ds_frac=1,xyz_dim=2,knn_channels=None,**kwargs):
+        super().__init__()
+        self.basepointconv = PointConvBase(in_channels,out_channels,nbhd=nbhd,xyz_dim=xyz_dim,
+                                            knn_channels=knn_channels,**kwargs)
+        self.subsample = LearnedSubsample(ds_frac,knn_channels=knn_channels,nbhd=nbhd,
+                                        xyz_dim=xyz_dim,chin=in_channels,**kwargs)
+    def forward(self,inp):
+        xyz,vals = inp
+        bnc_inp = (xyz.permute(0,2,1),vals.permute(0,2,1)) 
+        query_xyz = self.subsample(bnc_inp,coords_only=True)
+        #print(query_xyz.shape,bnc_inp[0].shape,bnc_inp[1].shape)
+        return query_xyz.permute(0,2,1),self.basepointconv(bnc_inp,query_xyz).permute(0,2,1)
 
 @export
 def pConvBNrelu(in_channels,out_channels,**kwargs):
@@ -480,7 +676,7 @@ class pBottleneck(nn.Module):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
-        norm_layer = (lambda c: nn.GroupNorm(c//16,c)) if gn else nn.BatchNorm1d
+        norm_layer = nn.BatchNorm1d
         self.pointconv = PointConv(in_channels//r,out_channels,nbhd=nbhd,ds_frac=ds_frac,**kwargs)
         self.net = nn.Sequential(
             Pass(norm_layer(in_channels)),
@@ -489,13 +685,13 @@ class pBottleneck(nn.Module):
             Pass(norm_layer(in_channels//r)),
             Pass(nn.ReLU()),
             self.pointconv,
-            Pass(norm_layer(out_channels)),
-            Pass(nn.ReLU()),
-            Pass(nn.Conv1d(out_channels,out_channels,1)),
+            #Pass(norm_layer(out_channels)),
+            #Pass(nn.ReLU()),
+            #Pass(nn.Conv1d(out_channels,out_channels,1)),
         )
 
     def forward(self,x):
-        coords,values = x
+        #coords,values = x
         #print(values.shape)
         new_coords,new_values  = self.net(x)
         new_values[:,:self.in_channels] += self.pointconv.subsample(x)[1] # subsampled old values
@@ -503,27 +699,7 @@ class pBottleneck(nn.Module):
         #print(new_coords.shape,new_values.shape)
         return new_coords,new_values
 
-# class FarthestSubsample(nn.Module):
-#     def __init__(self,ds_frac=0.5,knn_channels=None):
-#         super().__init__()
-#         self.ds_frac = ds_frac
-#         self.subsample_lookup = {}
-#         self.knn_channels = knn_channels
-#     def forward(self,x,coords_only=False):
-#         # BCN representation assumed
-#         coords,values = x
-#         coords = coords.permute(0, 2, 1)
-#         values = values.permute(0, 2, 1)
-#         num_downsampled_points = int(np.round(coords.shape[1]*self.ds_frac))
-#         key = pthash(coords[:,:,:self.knn_channels])
-#         if key not in self.subsample_lookup:# or True:
-#             #print("Cache miss")
-#             self.subsample_lookup[key] = farthest_point_sample(coords, num_downsampled_points)
-#         fps_idx = self.subsample_lookup[key]
-#         new_coords = index_points(coords,fps_idx).permute(0, 2, 1)
-#         if coords_only: return new_coords
-#         new_values = index_points(values,fps_idx).permute(0, 2, 1)
-#         return new_coords,new_values
+
 
 def imagelike_nn_downsample(x,coords_only=False):
     coords,values = x
@@ -589,65 +765,3 @@ class pResBlock(nn.Module):
         res_coords,res_values = self.net(x)
         skip_coords,skip_values = self.shortcut(x)
         return res_coords,res_values+skip_values
-
-# @export
-# class PointConvDensitySetAbstraction(nn.Module):
-#     def __init__(self, npoint, nsample, in_channel, mlp, bandwidth, group_all,xyz_dim=3):
-#         super(PointConvDensitySetAbstraction, self).__init__()
-#         cicm_co = 16
-#         self.npoint = npoint
-#         self.nsample = nsample
-#         self.mlp_convs = nn.ModuleList()
-#         self.mlp_bns = nn.ModuleList()
-#         last_channel = in_channel
-#         for out_channel in mlp:
-#             self.mlp_convs.append(nn.Conv2d(last_channel, out_channel, 1))
-#             self.mlp_bns.append(nn.BatchNorm2d(out_channel))
-#             last_channel = out_channel
-#         #ci*cm = co*16
-#         self.weightnet = WeightNet(xyz_dim, cicm_co)
-#         self.linear = nn.Linear(cicm_co * mlp[-1], mlp[-1])
-#         self.bn_linear = nn.BatchNorm1d(mlp[-1])
-#         self.densitynet = DensityNet()
-#         self.group_all = group_all
-#         self.bandwidth = bandwidth
-
-#     def forward(self, inp):
-#         """
-#         Input:
-#             xyz: input points position data, [B, C, N]
-#             points: input points data, [B, D, N]
-#         Return:
-#             new_xyz: sampled points position data, [B, C, S]
-#             new_points_concat: sample points feature data, [B, D', S]
-#         """
-#         xyz, points = inp
-#         B = xyz.shape[0]
-#         N = xyz.shape[2]
-#         xyz = xyz.permute(0, 2, 1)
-#         if points is not None:
-#             points = points.permute(0, 2, 1)
-
-#         xyz_density = compute_density(xyz, self.bandwidth)
-#         #import ipdb; ipdb.set_trace()
-#         density_scale = self.densitynet(xyz_density)
-
-#         new_xyz, new_points, grouped_xyz_norm, _, grouped_density = sample_and_group(self.npoint, self.nsample, xyz, points, density_scale.view(B, N, 1))
-#         # new_xyz: sampled points position data, [B, npoint, C]
-#         # new_points: sampled points data, [B, npoint, nsample, C+D]
-#         new_points = new_points.permute(0, 3, 2, 1) # [B, C+D, nsample,npoint]
-#         for i, conv in enumerate(self.mlp_convs):
-#             bn = self.mlp_bns[i]
-#             new_points =  F.relu(bn(conv(new_points)))
-
-#         grouped_xyz = grouped_xyz_norm.permute(0, 3, 2, 1)
-#         grouped_xyz = grouped_xyz * grouped_density.permute(0, 3, 2, 1)
-#         weights = self.weightnet(grouped_xyz)
-
-#         new_points = torch.matmul(input=new_points.permute(0, 3, 1, 2), other = weights.permute(0, 3, 2, 1)).view(B, self.npoint or N, -1)
-#         new_points = self.linear(new_points)
-#         new_points = self.bn_linear(new_points.permute(0, 2, 1))
-#         new_points = F.relu(new_points)
-#         new_xyz = new_xyz.permute(0, 2, 1)
-
-#         return (new_xyz, new_points)

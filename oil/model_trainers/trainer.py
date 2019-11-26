@@ -50,17 +50,13 @@ class Trainer(object):
         loss.backward()
         self.optimizer.step()
         return loss
-
-    def loss(self, minibatch):
-        """ Takes in a minibatch of data and outputs the loss"""
-        raise NotImplementedError
     
     def metrics(self,loader):
         return {}
 
     def logStuff(self, step, minibatch=None):
         metrics = {}
-        if minibatch:
+        if minibatch is not None and hasattr(self,'loss'):
             try: metrics['Minibatch_Loss'] = self.loss(minibatch).cpu().data.numpy()
             except (NotImplementedError, TypeError): pass
         for loader_name,dloader in self.dataloaders.items():
