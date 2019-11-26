@@ -139,6 +139,30 @@ class colorEquivariantResnetpc(resnetpc):
 
 
 @export
+class layer13pc(nn.Module,metaclass=Named):
+    """
+    pointconvnet
+    """
+    def __init__(self, num_classes=10,k=64,ksize=3.66,num_layers=4,total_ds=1/256,**kwargs):
+        super().__init__()
+        self.num_classes = num_classes
+        nbhd = int(np.round(ksize**2))
+        ds_fracs = total_ds**(1/num_layers)
+        chs = np.round(logspace(k,4*k,num_layers+1)).astype(int)
+        self.initial_conv = conv2d(3,k,1)
+        self.net = nn.Sequential(
+            *[pConvBNrelu(chs[i],chs[i+1],ds_frac=ds_fracs,nbhd=nbhd,**kwargs) for i in range(num_layers)],
+            Expression(lambda u:u[-1].mean(-1)),
+            nn.Linear(chs[-1],num_classes)
+        )
+
+    def forward(self,x):
+        bs,c,h,w = x.shape
+        coords = torch.stack(torch.meshgrid([torch.linspace(-1,1,h),torch.linspace(-1,1,w)]),dim=-1).view(h*w,2).unsqueeze(0).permute(0,2,1).repeat(bs,1,1).to(x.device)
+        inp_as_points = self.initial_conv(x).view(bs,-1,h*w)
+        return self.net((coords,inp_as_points))
+
+@export
 class PointConv3d(layer13pc):
     def __init__(self,num_classes=40,k=64,ksize=np.sqrt(32),xyz_dim=3,**kwargs):
         super().__init__(num_classes=num_classes,k=k,ksize=ksize,xyz_dim=xyz_dim,**kwargs)
@@ -150,6 +174,26 @@ class PointConv3d(layer13pc):
         noise_input = torch.zeros(bs,self.k,n).to(x.device)
         return self.net((x,noise_input))
 
+@export
+class PointConvVanilla(nn.Module):
+    def __init__(self,num_classes=40,xyz_dim=3):
+        super().__init__()
+        self.num_classes = num_classes
+        self.net = nn.Sequential(
+            pConvBNrelu(3,64,ds_frac=1/2,nbhd=32,xyz_dim=xyz_dim),
+            pConvBNrelu(64,128,ds_frac=1/2,nbhd=32,xyz_dim=xyz_dim),
+            pConvBNrelu(128,256,ds_frac=1/4,nbhd=32,xyz_dim=xyz_dim),
+            pConvBNrelu(256,512,ds_frac=1/2,nbhd=32,xyz_dim=xyz_dim),
+            Expression(lambda u:u[-1].mean(-1)),
+            nn.Linear(512,512),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.Dropout(.4),
+            nn.Linear(512,num_classes),
+        )
+
+    def forward(self,x):
+        return self.net((x,x))
 @export
 class PointRes3d(resnetpc):
     def __init__(self,num_classes=40,k=8,ksize=np.sqrt(32),xyz_dim=3,**kwargs):
