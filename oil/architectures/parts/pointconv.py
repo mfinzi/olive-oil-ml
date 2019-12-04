@@ -418,6 +418,79 @@ class SO2(LieGroup):
         return embedding
 
 @export
+class SE2(LieGroup):
+    embed_dim = 9
+    act_dim = 3
+    @staticmethod
+    def log(g):
+        sin = g[...,1,0]
+        cos = g[...,0,0]
+        theta = torch.atan2(sin,cos)
+        vxy = g[...,:2,2]
+        Vinv = torch.zeros_like(g[...,:2,:2])
+        Vinv[...,0,1] = theta/2
+        Vinv[...,1,0] = -theta/2
+        sincterm = 1-theta*theta/4 # use taylor series expansion for numeric stability
+        notailer = (theta.abs()>1e-3) # if theta is large enough we can use exact
+        sincterm[notailer] = (.5*theta*sin/(1-cos))[notailer]
+        Vinv[...,0,0] = sincterm
+        Vinv[...,1,1] = sincterm
+        p = (Vinv@vxy.unsqueeze(-1)).squeeze(-1)
+        a = torch.zeros_like(g)
+        a[...,:2,2] = p
+        a[...,0,1] = theta
+        a[...,1,0] = -theta
+        return a
+    @staticmethod
+    def exp(a):
+        g = torch.zeros_like(a)
+        theta = a[...,0,1]
+        tx = a[...,0,2]
+        ty = a[...,1,2]
+        assert torch.allclose(theta,-a[...,1,0]), "element not in lie algebra?"
+        assert torch.allclose(a[...,2,2],0*a[...,0,0]), "element not in lie algebra?"
+        assert torch.allclose(a[...,1,1],0*a[...,0,0]), "element not in lie algebra?"
+        assert torch.allclose(a[...,0,0],0*a[...,0,0]), "element not in lie algebra?"
+        sin = theta.sin()
+        cos = theta.cos()
+        sinc = 1-theta*theta/6 + (1/120)*theta**4 # use taylor series expansion for numeric stability
+        notailer = (theta.abs()>1e-3) # if theta is large enough we can use exact
+        sinc[notailer] = (sin/theta)[notailer]
+        cosc = -theta/2 + (1/24)*theta**3 # use taylor series expansion for numeric stability
+        cosc[notailer] = ((1-cos)/theta)[notailer] # if theta is large enough we can use exact
+
+        g[...,0,0] = cos
+        g[...,1,1] = cos
+        g[...,0,1] = -sin
+        g[...,1,0] = sin
+        g[...,2,2] = 1
+        g[...,0,2] = sinc*tx-cosc*ty
+        g[...,1,2] = cosc*tx+sinc*ty
+        return g
+
+    @staticmethod
+    def lifted_samples(p,num_samples):
+        """assumes p has shape (bs,2)"""
+        bs,d = p.shape
+        # Sample stabilizer of the origin
+        thetas = (torch.rand(bs,num_samples).to(p.device)*2-1)*np.pi
+        R = torch.zeros(bs,num_samples,d+1,d+1).to(p.device)
+        sin,cos = thetas.sin(),thetas.cos()
+        R[...,0,0] = cos
+        R[...,1,1] = cos
+        R[...,0,1] = -sin
+        R[...,1,0] = sin
+        R[...,2,2] = 1
+        # Get T(p)
+        T = torch.zeros_like(R)
+        T[...,0,0]=1
+        T[...,1,1]=1
+        T[...,2,2]=1
+        T[...,:2,2] = p[:,None,:]
+        return SE2.log(R@T)
+
+
+@export
 class RGBscale(LieGroup):
     embed_dim=1
     @staticmethod
@@ -502,26 +575,14 @@ class PointConvBase(nn.Module):
         self.nbhd = nbhd
         self.weightnet = WeightNet(xyz_dim, self.cicm_co,hidden_unit = (32, 32))
         self.linear = nn.Linear(self.cicm_co * chin, chout)
-        # if isinstance(ds_frac,numbers.Number):
-        #     self.subsample = FarthestSubsample(ds_frac,knn_channels=knn_channels)
-        # else:
-        #     self.subsample = ds_frac
+
     def extract_neighborhood(self,inp_xyz,inp_vals,query_xyz):
-        #print(inp_xyz.shape)
         neighbor_idx = knn_point(min(self.nbhd,inp_xyz.shape[1]),
                     inp_xyz[:,:,:self.knn_channels], query_xyz[:,:,:self.knn_channels])#self.neighbor_lookup[key]
         nidx = neighbor_idx.cpu().data.numpy()
         neighbor_xyz = index_points(inp_xyz, neighbor_idx) # [B, npoint, nsample, C]
-        try:
-            nidx2 = neighbor_idx.cpu().data.numpy()
-            neighbor_values = index_points(inp_vals, neighbor_idx)
-        except Exception as e:
-            print("Exception here")
-            print(inp_vals.shape)
-            print(nidx.shape)
-            print(nidx)
-            print(nidx2)
-            raise e
+        nidx2 = neighbor_idx.cpu().data.numpy()
+        neighbor_values = index_points(inp_vals, neighbor_idx)
         return neighbor_xyz, neighbor_values # (bs,n,nbhd,c)
 
     def compute_deltas(self,output_xyz,neighbor_xyz):
@@ -548,6 +609,21 @@ class PointConvBase(nn.Module):
         deltas = self.get_embedded_group_elems(nbhd_xyz,query_xyz.unsqueeze(2))
         convolved_vals = self.point_convolve(deltas,nbhd_vals)
         return convolved_vals
+
+class GroupPointConv(PointConvBase):
+    def __init__(self,*args,group=Trivial,**kwargs):
+        super().__init__(*args,**kwargs)
+        self.group = group
+        self.weightnet = WeightNet(self.xyz_dim+self.group.embed_dim, self.cicm_co,hidden_unit = (32, 32))
+    def extract_neighborhood(self,inp_xyz,inp_vals,query_xyz):
+        raise NotImplementedError
+    def get_embedded_group_elems(self,nbhd_xyz,output_xyz):
+        G = self.group
+        output_A = output_xyz.view(*output_xyz.shape[:-1],G.act_dim,G.act_dim)
+        nbhd_A = nbhd_xyz.view(*nbhd_xyz.shape[:-1],G.act_dim,G.act_dim)
+        commutator = output_A@nbhd_A - nbhd_A@output_A 
+        embedded_group_elems = output_xyz - nbhd_xyz -0.5*commutator.view(*nbhd_xyz.shape)
+        return embedded_group_elems
 
 @export
 class LearnedSubsample(nn.Module):
@@ -596,30 +672,25 @@ class LearnedSubsample(nn.Module):
     #     plt.show()
 
 
-@export
-class SO2xT2(LieGroup):
-    embed_dim = 3
-    def farthest_sample(inp):
-        """ Assumes input is in T2 """
-        pass
-
-class GroupPointConv(PointConvBase):
-    def __init__(self,*args,group=Trivial,**kwargs):
-        super().__init__(*args,**kwargs)
-        self.group = group
-        self.weightnet = WeightNet(self.xyz_dim+self.group.embed_dim, self.cicm_co,hidden_unit = (32, 32))
-
-    def get_embedded_group_elems(self,nbhd_xyz,output_xyz):
-        deltas = nbhd_xyz - output_xyz
-        embedded_group_elems = self.group.sample_origin_stabilizer(deltas)
-        return embedded_group_elems
 
 
-class GroupPointConvV2(PointConvBase):
-    def __init__(self,*args,group=Trivial,**kwargs):
-        super().__init__(*args,**kwargs)
-        self.group = group
-        self.weightnet = WeightNet(self.group.embed_dim, self.cicm_co,hidden_unit = (32, 32))
+# class GroupPointConv(PointConvBase):
+#     def __init__(self,*args,group=Trivial,**kwargs):
+#         super().__init__(*args,**kwargs)
+#         self.group = group
+#         self.weightnet = WeightNet(self.xyz_dim+self.group.embed_dim, self.cicm_co,hidden_unit = (32, 32))
+
+#     def get_embedded_group_elems(self,nbhd_xyz,output_xyz):
+#         deltas = nbhd_xyz - output_xyz
+#         embedded_group_elems = self.group.sample_origin_stabilizer(deltas)
+#         return embedded_group_elems
+
+
+# class GroupPointConvV2(PointConvBase):
+#     def __init__(self,*args,group=Trivial,**kwargs):
+#         super().__init__(*args,**kwargs)
+#         self.group = group
+#         self.weightnet = WeightNet(self.group.embed_dim, self.cicm_co,hidden_unit = (32, 32))
 
 class CoordinatePointConv(PointConvBase):
     def __init__(self,*args,coordmap=Coordinates(),**kwargs):
