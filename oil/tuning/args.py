@@ -22,7 +22,8 @@ def argupdated_config(cfg,parser=None, namespace=None):
         clobbered_name_mapping[short_field_name] = field
     parser.add_argument("--local_rank",type=int) # so that distributed will work #TODO: sort this out properly
     args = parser.parse_args()
-    #if namespace is not None: from namespace import *
+    if namespace is not None:
+        globals().update({k: getattr(namespace, k) for k in namespace.__all__})
     for short_argname, argvalue in vars(args).items():
         if isinstance(argvalue,str):
             try: argvalue = eval(argvalue) # Try to evaluate the strings
