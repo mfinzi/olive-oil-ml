@@ -6,7 +6,7 @@ from oil.datasetup import *
 from oil.architectures import *
 from torch.optim import *
 
-def argupdated_config(cfg,parser=None):
+def argupdated_config(cfg,parser=None, namespace=None):
     """ Uses the cfg to generate a parser spec which parses the command line arguments
         and outputs the updated config. An existing argparser can be specified."""
      # TODO: throw error for clobbered names
@@ -22,6 +22,7 @@ def argupdated_config(cfg,parser=None):
         clobbered_name_mapping[short_field_name] = field
     parser.add_argument("--local_rank",type=int) # so that distributed will work #TODO: sort this out properly
     args = parser.parse_args()
+    if namespace is not None: from namespace import *
     for short_argname, argvalue in vars(args).items():
         if isinstance(argvalue,str):
             try: argvalue = eval(argvalue) # Try to evaluate the strings
