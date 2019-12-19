@@ -5,7 +5,8 @@ import torch.nn.functional as F
 import torch.nn as nn
 import torch.nn.init as init
 from oil.architectures.parts import pConvBNrelu, pBottleneck#,PointConvDensitySetAbstraction
-from oil.architectures.parts import pResBlock,Pass, imgpConvBNrelu
+from oil.architectures.parts import pResBlock,Pass, imgpConvBNrelu, SE2
+from oil.architectures.parts import gpConvBNrelu,FarthestSubsample
 import numpy as np
 from torch.nn.utils import weight_norm
 import math
@@ -215,6 +216,29 @@ class mnistLayer13pc(layer13pc):
         coords,vals = x
         return self.net((coords,self.initial_conv(vals)))
 
+
+@export
+class SE2mnistLayer13pc(layer13pc):
+    def __init__(self, num_classes=10,k=64,ksize=3.66,num_layers=4,total_ds=1/256,**kwargs):
+        super().__init__()
+        self.cache = False
+        self.group = SE2
+        self.num_classes = num_classes
+        self.initial_subsample = FarthestSubsample(1/6,distance=self.group.distance,cache=self.cache)
+        nbhd = int(np.round(ksize**2))
+        ds_fracs = total_ds**(1/num_layers)
+        chs = np.round(logspace(k,4*k,num_layers+1)).astype(int)
+        self.initial_conv = nn.Conv1d(1,k,1)
+        self.net = nn.Sequential(
+            *[gpConvBNrelu(chs[i],chs[i+1],ds_frac=ds_fracs,nbhd=nbhd,cache=self.cache,**kwargs) for i in range(num_layers)],
+            Expression(lambda u:u[-1].mean(-1)),
+            nn.Linear(chs[-1],num_classes)
+        )
+
+    def forward(self,x):
+        g_coords,vals = self.initial_subsample(self.group.lift(x,6,cache=self.cache))
+        #print(g_coords.shape)
+        return self.net((g_coords,self.initial_conv(vals)))
 
 @export
 class player13s(nn.Module,metaclass=Named):

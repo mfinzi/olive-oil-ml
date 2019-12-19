@@ -62,7 +62,7 @@ def index_points(points, idx):
     new_points = points[batch_indices, idx, :]
     return new_points
 
-def farthest_point_sample(xyz, npoint):
+def farthest_point_sample(xyz, npoint, distance = square_distance):
     """
     Input:
         xyz: pointcloud data, [B, N, C]
@@ -74,16 +74,16 @@ def farthest_point_sample(xyz, npoint):
     device = xyz.device
     B, N, C = xyz.shape
     centroids = torch.zeros(B, npoint, dtype=torch.long).to(device)
-    distance = torch.ones(B, N).to(device) * 1e10
+    distances = torch.ones(B, N).to(device) * 1e10
     farthest = torch.randint(0, N, (B,), dtype=torch.long).to(device)
     batch_indices = torch.arange(B, dtype=torch.long).to(device)
     for i in range(npoint):
         centroids[:, i] = farthest
         centroid = xyz[batch_indices, farthest, :].view(B, 1, C)
-        dist = torch.sum((xyz - centroid) ** 2, -1)
-        mask = dist < distance
-        distance[mask] = dist[mask]
-        farthest = torch.max(distance, -1)[1]
+        dist = distance(xyz,centroid)#TODO check that broadcasting is correct #torch.sum((xyz - centroid) ** 2, -1)
+        mask = dist < distances
+        distances[mask] = dist[mask]
+        farthest = torch.max(distances, -1)[1]
     return centroids
 
 def query_ball_point(radius, nsample, xyz, new_xyz):
@@ -108,7 +108,24 @@ def query_ball_point(radius, nsample, xyz, new_xyz):
     group_idx[mask] = group_first[mask]
     return group_idx
 
-def knn_point(nsample, xyz, new_xyz):
+def farthest_ball_point(radius,nsample,xyz,new_xyz,distance=square_distance):
+    # two things to fix: 
+    # 1) random -> farthest or low discrepancy sampling of elements in the ball
+    # 2) when less than nsample elements in ball, don't fill with first elem
+    #       rather: also give a mask to use in point convolve
+    device = xyz.device
+    B, N, C = xyz.shape
+    _, S, _ = new_xyz.shape
+    group_idx = torch.arange(N, dtype=torch.long).to(device).view(1, 1, N).repeat([B, S, 1])
+    sqrdists = distance(new_xyz, xyz)
+    group_idx[sqrdists > radius ** 2] = N
+    group_idx = group_idx.sort(dim=-1)[0][:, :, :nsample]
+    group_first = group_idx[:, :, 0].view(B, S, 1).repeat([1, 1, nsample])
+    mask = group_idx == N
+    group_idx[mask] = group_first[mask]
+    return group_idx
+
+def knn_point(nsample, xyz, new_xyz, distance=square_distance):
     """
     Input:
         nsample: max sample number in local region
@@ -118,7 +135,7 @@ def knn_point(nsample, xyz, new_xyz):
         group_idx: grouped points index, [B, S, nsample]
     """
     
-    sqrdists = square_distance(new_xyz, xyz)
+    sqrdists = distance(new_xyz, xyz)
     _, group_idx = torch.topk(sqrdists, nsample, dim = -1, largest=False, sorted=False)
     if torch.any(group_idx>10000):
         print("greater than 10k :(")
@@ -175,11 +192,13 @@ def pthash(xyz):
 
 @export
 class FarthestSubsample(nn.Module):
-    def __init__(self,ds_frac=0.5,knn_channels=None):
+    def __init__(self,ds_frac=0.5,knn_channels=None,distance=square_distance,cache=False):
         super().__init__()
         self.ds_frac = ds_frac
         self.subsample_lookup = {}
         self.knn_channels = knn_channels
+        self.distance=distance
+        self.cache=cache
     def forward(self,x,coords_only=False):
         # BCN representation assumed
         coords,values = x
@@ -187,15 +206,21 @@ class FarthestSubsample(nn.Module):
             if coords_only: return coords
             else: return x
         coords = coords.permute(0, 2, 1)
-        values = values.permute(0, 2, 1)
+        
         num_downsampled_points = int(np.round(coords.shape[1]*self.ds_frac))
-        #key = pthash(coords[:,:,:self.knn_channels])
-        #if key not in self.subsample_lookup:# or True:
-            #print("Cache miss")
-        #    self.subsample_lookup[key] = farthest_point_sample(coords, num_downsampled_points)
-        fps_idx = farthest_point_sample(coords[:,:,:self.knn_channels], num_downsampled_points)#self.subsample_lookup[key]
+        if self.cache:
+            key = pthash(coords[:,:,:self.knn_channels])
+            if key not in self.subsample_lookup:# or True:
+                print("Cache miss")
+                self.subsample_lookup[key] = farthest_point_sample(coords[:,:,:self.knn_channels],
+                                num_downsampled_points,distance=self.distance).detach()
+            fps_idx = self.subsample_lookup[key]
+        else:
+            fps_idx = farthest_point_sample(coords[:,:,:self.knn_channels],
+                                num_downsampled_points,distance=self.distance)#self.subsample_lookup[key]
         new_coords = index_points(coords,fps_idx).permute(0, 2, 1)
         if coords_only: return new_coords
+        values = values.permute(0, 2, 1)
         new_values = index_points(values,fps_idx).permute(0, 2, 1)
         return new_coords,new_values
 
@@ -421,6 +446,7 @@ class SO2(LieGroup):
 class SE2(LieGroup):
     embed_dim = 9
     act_dim = 3
+    cached = {}
     @staticmethod
     def log(g):
         sin = g[...,1,0]
@@ -467,14 +493,31 @@ class SE2(LieGroup):
         g[...,0,2] = sinc*tx-cosc*ty
         g[...,1,2] = cosc*tx+sinc*ty
         return g
-
     @staticmethod
-    def lifted_samples(p,num_samples):
-        """assumes p has shape (bs,2)"""
-        bs,d = p.shape
+    def inv(g):
+        return SE2.exp(-SE2.log(g))
+    @staticmethod
+    def distance(a,b):
+        if a.shape[-2]==1 or b.shape[-2]==1 or a.shape==b.shape:
+            a_mat = a.view(*a.shape[:-1],3,3)
+            b_mat = b.view(*b.shape[:-1],3,3)
+        else:
+            a_mat = a.view(*a.shape[:-1],1,3,3)
+            b_mat = b.view(*b.shape[:-2],1,b.shape[-2],3,3)
+        # print(a.shape)
+        # print(b.shape)
+        return SE2.log(SE2.exp(-b_mat)@SE2.exp(a_mat)).norm(dim=(-2,-1))**2
+    @staticmethod
+    def lifted_group_elems(pt,nsamples):
+        
+        d=2
         # Sample stabilizer of the origin
-        thetas = (torch.rand(bs,num_samples).to(p.device)*2-1)*np.pi
-        R = torch.zeros(bs,num_samples,d+1,d+1).to(p.device)
+        #thetas = (torch.rand(*p.shape[:-1],num_samples).to(p.device)*2-1)*np.pi
+
+        thetas = torch.linspace(-np.pi,np.pi,nsamples)
+        for _ in pt.shape[:-1]:
+            thetas=thetas.unsqueeze(0)
+        R = torch.zeros(*pt.shape[:-1],nsamples,d+1,d+1).to(pt.device)
         sin,cos = thetas.sin(),thetas.cos()
         R[...,0,0] = cos
         R[...,1,1] = cos
@@ -486,8 +529,27 @@ class SE2(LieGroup):
         T[...,0,0]=1
         T[...,1,1]=1
         T[...,2,2]=1
-        T[...,:2,2] = p[:,None,:]
-        return SE2.log(R@T)
+        T[...,:2,2] = pt.unsqueeze(-2)
+        flat_a = SE2.log(R@T).reshape(*pt.shape[:-2],pt.shape[-2]*nsamples,(d+1)**2).transpose(-1,-2)
+        return flat_a
+    @classmethod
+    def lift(cls,x,nsamples,cache=False):
+        """assumes p has shape (*,2)"""
+        p,vals = x
+        pt = p.transpose(-1,-2)
+        vt = vals.transpose(-1,-2)
+        if cache:
+            key = pthash(pt)
+            if key not in cls.cached:# or True:
+                print("Lift Cache miss")
+                cls.cached[key] = cls.lifted_group_elems(pt,nsamples).detach()
+            flat_a = cls.cached[key]
+        else:
+            flat_a = cls.lifted_group_elems(pt,nsamples).detach()
+        expanded_v = vt[...,None,:].repeat((1,)*len(vals.shape[:-1])+(nsamples,1))
+        flat_vals = expanded_v.reshape(*vt.shape[:-2],vt.shape[-2]*nsamples,vt.shape[-1]).transpose(-1,-2)
+        return (flat_a,flat_vals)
+    
 
 
 @export
@@ -585,6 +647,9 @@ class PointConvBase(nn.Module):
         neighbor_values = index_points(inp_vals, neighbor_idx)
         return neighbor_xyz, neighbor_values # (bs,n,nbhd,c)
 
+    def extract_neighborhood2(self,inp_xyz,inp_vals,query_xyz):
+        # Do farthest point sampling on a ball, rather than knn
+        raise NotImplementedError
     def compute_deltas(self,output_xyz,neighbor_xyz):
         return neighbor_xyz - output_xyz.unsqueeze(2)
 
@@ -614,9 +679,15 @@ class GroupPointConv(PointConvBase):
     def __init__(self,*args,group=Trivial,**kwargs):
         super().__init__(*args,**kwargs)
         self.group = group
-        self.weightnet = WeightNet(self.xyz_dim+self.group.embed_dim, self.cicm_co,hidden_unit = (32, 32))
+        self.weightnet = WeightNet(self.group.embed_dim, self.cicm_co,hidden_unit = (32, 32))
     def extract_neighborhood(self,inp_xyz,inp_vals,query_xyz):
-        raise NotImplementedError
+        neighbor_idx = knn_point(min(self.nbhd,inp_xyz.shape[1]),inp_xyz[:,:,:self.knn_channels],
+                    query_xyz[:,:,:self.knn_channels],self.group.distance)#self.neighbor_lookup[key]
+        nidx = neighbor_idx.cpu().data.numpy()
+        neighbor_xyz = index_points(inp_xyz, neighbor_idx) # [B, npoint, nsample, C]
+        nidx2 = neighbor_idx.cpu().data.numpy()
+        neighbor_values = index_points(inp_vals, neighbor_idx)
+        return neighbor_xyz, neighbor_values # (bs,n,nbhd,c)
     def get_embedded_group_elems(self,nbhd_xyz,output_xyz):
         G = self.group
         output_A = output_xyz.view(*output_xyz.shape[:-1],G.act_dim,G.act_dim)
@@ -724,19 +795,40 @@ class PointConv(nn.Module):
         super().__init__()
         self.basepointconv = PointConvBase(in_channels,out_channels,nbhd=nbhd,xyz_dim=xyz_dim,
                                             knn_channels=knn_channels,**kwargs)
-        self.subsample = LearnedSubsample(ds_frac,knn_channels=knn_channels,nbhd=nbhd,
-                                        xyz_dim=xyz_dim,chin=in_channels,**kwargs)
+        self.subsample = FarthestSubsample(ds_frac,knn_channels)
+        #self.subsample = LearnedSubsample(ds_frac,knn_channels=knn_channels,nbhd=nbhd,
+        #                                xyz_dim=xyz_dim,chin=in_channels,**kwargs)
     def forward(self,inp):
         xyz,vals = inp
         bnc_inp = (xyz.permute(0,2,1),vals.permute(0,2,1)) 
         query_xyz = self.subsample(bnc_inp,coords_only=True)
         #print(query_xyz.shape,bnc_inp[0].shape,bnc_inp[1].shape)
         return query_xyz.permute(0,2,1),self.basepointconv(bnc_inp,query_xyz).permute(0,2,1)
-
+@export
+class gPointConv(nn.Module):
+    def __init__(self,in_channels,out_channels,nbhd=9,ds_frac=1,xyz_dim=2,knn_channels=None,
+                    group=SE2,cache=False,**kwargs):
+        super().__init__()
+        self.basepointconv = GroupPointConv(in_channels,out_channels,nbhd=nbhd,xyz_dim=xyz_dim,
+                                            knn_channels=knn_channels,group=group,**kwargs)
+        self.subsample = FarthestSubsample(ds_frac,knn_channels,distance=group.distance,cache=cache)
+    def forward(self,inp):
+        xyz,vals = inp
+        bnc_inp = (xyz.permute(0,2,1),vals.permute(0,2,1)) 
+        query_xyz = self.subsample(inp,coords_only=True).permute(0,2,1)
+        #print(query_xyz.shape,bnc_inp[0].shape,bnc_inp[1].shape)
+        return query_xyz.permute(0,2,1),self.basepointconv(bnc_inp,query_xyz).permute(0,2,1)
 @export
 def pConvBNrelu(in_channels,out_channels,**kwargs):
     return nn.Sequential(
         PointConv(in_channels,out_channels,**kwargs),
+        Pass(nn.BatchNorm1d(out_channels)),
+        Pass(nn.ReLU())
+    )
+@export
+def gpConvBNrelu(in_channels,out_channels,**kwargs):
+    return nn.Sequential(
+        gPointConv(in_channels,out_channels,**kwargs),
         Pass(nn.BatchNorm1d(out_channels)),
         Pass(nn.ReLU())
     )

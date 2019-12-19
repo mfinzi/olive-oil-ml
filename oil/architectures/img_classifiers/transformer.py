@@ -4,7 +4,7 @@ from torch.nn import Parameter
 import torch.nn.functional as F
 import torch.nn as nn
 import torch.nn.init as init
-from oil.architectures.parts import PointConvSetAbstraction, pConvBNrelu, pBottleneck#,PointConvDensitySetAbstraction
+from oil.architectures.parts import pConvBNrelu, pBottleneck#,PointConvDensitySetAbstraction
 from oil.architectures.parts import pResBlock,Pass
 import numpy as np
 from torch.nn.utils import weight_norm
