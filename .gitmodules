@@ -1,3 +1,0 @@
-[submodule "oil/utils/pytorch-fid"]
-	path = oil/utils/pytorch-fid
-	url = git@github.com:mseitzer/pytorch-fid.git
