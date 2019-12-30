@@ -7,7 +7,7 @@
 Nuts and bolts deep learning library to make training neural networks easier.
 Features:
 * Logging functionality not at set time intervals but as a percentage of the total training time
-* Convenient specification for Random and Grid hyperparameter search, queued with a single GPU, split over multiple local GPUs, or a Slurm Cluster
+* Convenient specification for Random and Grid hyperparameter search: queued with a single GPU, split over multiple local GPUs, or a Slurm Cluster
 * Clean implementation of popular methods/problems in CV such as Vanilla Image Classification, Regression, the PiModel for Semi-Supervised learning, and SN-GAN; all through the common Trainer abstraction
 
 # Installation
