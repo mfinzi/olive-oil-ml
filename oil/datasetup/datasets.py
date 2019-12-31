@@ -16,7 +16,7 @@ class EasyIMGDataset(Dataset,metaclass=Named):
     balanced = True
     def __init__(self,*args,gan_normalize=False,download=True,**kwargs):
         transform = kwargs.pop('transform',None)
-        if not transform: transform = self.default_transform(gan_normalize,flow)
+        if not transform: transform = self.default_transform(gan_normalize)
         super().__init__(*args,transform=transform,download=download,**kwargs)
     
     def default_transform(self,gan_normalize=False):
