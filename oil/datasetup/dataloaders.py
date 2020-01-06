@@ -26,7 +26,7 @@ def getLabLoader(trainset, lab_BS, amnt_lab=1, amnt_dev=0, dataseed=0, balanced=
         numDev *= numLabeled
     with FixedNumpySeed(dataseed):
         get_indices = classBalancedSampleIndices if (balanced and trainset.balanced) else randomSampleIndices
-        labIndices, devIndices = get_indices(trainset, numLabeled, numDev)
+        labIndices, devIndices = get_indices(trainset, int(numLabeled), int(numDev))
 
     labSampler = SubsetRandomSampler(labIndices)
     labLoader = DataLoader(trainset,sampler=labSampler,batch_size=lab_BS,**kwargs)
