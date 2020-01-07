@@ -151,9 +151,12 @@ class icycle(Wrapper):
 #         else: super().__setattr__(name,value)
 
 def minibatch_to(device,mb):
-    try: return mb.to(device)
-    except AttributeError: 
-        return type(mb)(minibatch_to(device,elem) for elem in mb)
+	try: return mb.to(device)
+	except AttributeError:
+		if isinstance(mb,dict):
+			return type(mb)(((k,minibatch_to(device,v)) for k,v in mb.items()))
+		else:
+			return type(mb)(minibatch_to(device,elem) for elem in mb)
 import functools
 def LoaderTo(loader,device):
     return imap(functools.partial(minibatch_to,device),loader)
