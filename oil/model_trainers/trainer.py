@@ -79,8 +79,8 @@ class Trainer(object):
         num_total, loss_totals = 0, 0
         with Eval(self.model), torch.no_grad():
             for minibatch in loader:
-                try: mb_size = minibatch[0].size(0)
-                except AttributeError: mb_size = minibatch[0][0].size(0)
+                try: mb_size = loader.batch_size
+		except AttributeError: mb_size=1
                 loss_totals += mb_size*metrics(minibatch)
                 num_total += mb_size
         if num_total==0: raise KeyError("dataloader is empty")
