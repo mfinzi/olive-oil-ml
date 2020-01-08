@@ -1,13 +1,13 @@
 import torch, dill
 from torch import optim
 from ..logging.lazyLogger import LazyLogger
-from ..utils.utils import Eval
+from ..utils.utils import Eval, Named
 from ..utils.mytqdm import tqdm
 import copy, os, random
 import glob
 import numpy as np
 
-class Trainer(object):
+class Trainer(object,metaclass=Named):
     """ Base trainer
         """
     def __init__(self, model, dataloaders, 

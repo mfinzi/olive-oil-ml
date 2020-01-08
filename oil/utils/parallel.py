@@ -11,19 +11,18 @@ from torch.nn.parallel.parallel_apply import parallel_apply
 from torch.cuda._utils import _get_device_index
 
 
-def try_multigpu_parallelize(model,cfg,scalelr=False):
+def try_multigpu_parallelize(model,bs,lr=None):
+    scalelr = (lr is not None)
     if os.environ.copy().get("WORLD_SIZE",0)!=0:
         assert torch.cuda.is_available(), "No GPUs found"
         ngpus = torch.cuda.device_count() # For Adam, only the bs is scaled up
-        cfg['loader_config']['lab_BS']*= ngpus
-        #cfg['loader_config']['num_workers']*= ngpus
-        if scalelr: cfg['opt_config']['lr']*= ngpus
-        print(f"Discovered and training with {ngpus} GPUs, bs -> {ngpus}*bs{f', lr -> {ngpus}*lr' if scalelr else ''}.")
+        print(f"Discovered and training with {ngpus} GPUs, bs ->\
+         {ngpus}*bs{f', lr -> {ngpus}*lr' if scalelr else ''}.")
         torch.distributed.init_process_group(backend="nccl")
         DDP_model = nn.parallel.DistributedDataParallel(model)#,find_unused_parameters=True) #for 1.0.0
-        return DDP_model
+        return (DDP_model, bs*ngpus, lr*ngpus) if scalelr else (DDP_model, bs*ngpus)
     else:
-        return model
+        return (model, bs, lr) if scalelr else (model,bs)
 
 def _check_balance(device_ids):
     imbalance_warn = """

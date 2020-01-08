@@ -94,7 +94,7 @@ smethods =    '''__bool__ __int__ __float__ __complex__ __index__
                  __round__ __ceil__ __floor__ __trunc__
                  __radd__ __rmul__ __rsub__ __rtruediv__ __rfloordiv__ __rmod__
                  __rand__ __ror__ __rxor__ __rlshift__ __rrshift__
-                 __rpow__ __rdivmod__
+                 __rpow__ __rdivmod__ __getitem__ 
                  __get__ __set__ __delete__
                  __dir__ __sizeof__'''.split()
 for sm in smethods:

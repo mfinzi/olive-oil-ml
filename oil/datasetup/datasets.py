@@ -5,8 +5,9 @@ import torchvision.datasets as ds
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+from sklearn.model_selection import train_test_split
 from . import augLayers
-from ..utils.utils import Named, export
+from ..utils.utils import Named, export, Wrapper
 from . import camvid
 from .celeba import CelebA
 
@@ -14,6 +15,7 @@ class EasyIMGDataset(Dataset,metaclass=Named):
     ignored_index = -100
     class_weights = None
     balanced = True
+    stratify = True
     def __init__(self,*args,gan_normalize=False,download=True,**kwargs):
         transform = kwargs.pop('transform',None)
         if not transform: transform = self.default_transform(gan_normalize)
@@ -71,6 +73,50 @@ class SVHN(EasyIMGDataset,ds.SVHN):
         augLayers.RandomTranslate(4),
         augLayers.RandomHorizontalFlip(),
         )
+
+class IndexedDataset(Wrapper):
+    def __init__(self,dataset,ids):
+        super().__init__(dataset)
+        self._ids = ids
+    def __len__(self):
+        return len(self._ids)
+    def __getitem__(self,i):
+        return super().__getitem__(self._ids[i])
+
+@export
+def split_dataset(dataset,splits):
+    """ Inputs: A torchvision.dataset DATASET and a dictionary SPLITS
+        containing fractions or number of elements for each of the new datasets.
+        Allows values (0,1] or (1,N] or -1 to fill with remaining.
+        Example {'train':-1,'val':.1} will create a (.9, .1) split of the dataset.
+                {'train':10000,'val':.2,'test':-1} will create a (10000, .2N, .8N-10000) split
+                {'train':.5} will simply subsample the dataset by half."""
+    # Check that split values are valid
+    N = len(dataset)
+    int_splits = {k:(int(np.round(v*N)) if ((v<=1) and (v>0)) else v) for k,v in splits.items()}
+    assert sum(int_splits.values())<=N, "sum of split values exceed training set size, \
+        make sure that they sum to <=1 or the dataset size."
+    if hasattr(dataset,'stratify') and dataset.stratify!=False:
+        if dataset.stratify==True:
+            y = np.array([mb[-1] for mb in dataset])
+        else:
+            y = np.array([dataset.stratify(mb) for mb in dataset])
+    else:
+        y = None
+    indices = np.arange(len(dataset))
+    split_datasets = {}
+    for split_name, split_count in sorted(int_splits.items(),reverse=True):
+        if split_count == len(indices) or split_count==-1:
+            new_split_ids = indices
+            indices = indices[:0]
+        else:
+            indices, new_split_ids = train_test_split(indices,test_size=split_count,stratify=y[indices])  
+        split_datasets[split_name] = IndexedDataset(dataset,new_split_ids)
+    return split_datasets
+
+
+
+
 
 # class SegmentationDataset(EasyIMGDataset):
 #     def __init__(self,*args,joint_transform=True,split='train',**kwargs):

@@ -166,9 +166,10 @@ class train_trial(object):
         self.save=save
     def __call__(self,cfg,i=None):
         try:
+            cfg.pop('local_rank') #TODO: properly handle distributed
             if i is not None:
                 cfg['trainer_config']['log_suffix'] = 'trial{}/'.format(i)
-            trainer = self.make_trainer(cfg)
+            trainer = self.make_trainer(**cfg)
             try: cfg['params(M)'] = sum(p.numel() for p in trainer.model.parameters() if p.requires_grad)/10**6
             except AttributeError: pass
             trainer.logger.add_scalars('config',flatten_dict(cfg))
@@ -183,29 +184,3 @@ class train_trial(object):
         cleanup_cuda()
         del trainer
         return cfg, outcome
-
-
-# def train_trial(make_trainer,strict=False):
-#     """ a common trainer trial use case: make_trainer, train, return cfg and emas"""
-#     def _perform_trial(cfg,i=None):
-#         try:
-#             if i is not None:
-#                 cfg['trainer_config']['log_suffix'] = 'trial{}/'.format(i)
-#             trainer = make_trainer(cfg)
-#             try: cfg['params(M)'] = sum(p.numel() for p in trainer.model.parameters() if p.requires_grad)/10**6
-#             except AttributeError: pass
-#             trainer.logger.add_scalars('config',flatten_dict(cfg))
-#             epochs = cfg['num_epochs'] if isinstance(cfg['num_epochs'],Iterable) else [cfg['num_epochs']]
-#             for portion in epochs:
-#                 outcome = trainer.train(portion)
-#                 cfg['saved_at'] = trainer.logger.save_object(trainer,
-#                                     suffix='checkpoints/c{}.trainer'.format(trainer.epoch))
-#             torch.cuda.empty_cache()
-#             torch.distributed.destroy_process_group()
-#             return cfg, outcome
-#         except Exception as e:
-#             torch.cuda.empty_cache()
-#             torch.distributed.destroy_process_group()
-#             if strict: raise
-#             else: return cfg, e
-#     return _perform_trial
