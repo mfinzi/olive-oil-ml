@@ -1,6 +1,3 @@
-
-# Convenience function for that covers a common use case of training the model using
-#   the cosLr schedule, and logging the outcome and returning the results
 import torch
 from torch.utils.data import DataLoader
 from torch.optim import SGD

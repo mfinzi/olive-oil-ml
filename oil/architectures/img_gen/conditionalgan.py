@@ -50,7 +50,7 @@ class Generator(GanBase):
         return self(self.sample_y(n),self.sample_z(n))[:,:3]
 
 
-class Discriminator(nn.Module):
+class Discriminator(nn.Module,metaclass=Named):
     def __init__(self,num_classes,img_channels=3,k=128,out_size=1):
         super().__init__()
         self.num_classes = num_classes

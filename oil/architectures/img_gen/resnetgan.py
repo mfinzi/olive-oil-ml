@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import numpy as np
 #from .spectral_normalization import SpectralNorm
 #from torch.nn.utils import spectral_norm
-from ...utils.utils import Expression
+from ...utils.utils import Expression, Named
 from .ganBase import GanBase, add_spectral_norm, xavier_uniform_init
 
 
@@ -30,7 +30,7 @@ class Generator(GanBase):
         return self.model(z)
 
     
-class Discriminator(nn.Module):
+class Discriminator(nn.Module,metaclass=Named):
     def __init__(self,img_channels=3,k=128,out_size=1):
         super().__init__()
         self.img_channels = img_channels
