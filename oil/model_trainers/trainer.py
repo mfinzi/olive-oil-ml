@@ -59,8 +59,8 @@ class Trainer(object,metaclass=Named):
         if minibatch is not None and hasattr(self,'loss'):
             try: metrics['Minibatch_Loss'] = self.loss(minibatch).cpu().data.numpy()
             except (NotImplementedError, TypeError): pass
-        for loader_name,dloader in self.dataloaders.items():
-            if loader_name=='train' or len(dloader)==0 or loader_name[0]=='_': continue # Ignore metrics on train
+        for loader_name,dloader in self.dataloaders.items(): # Ignore metrics on train
+            if loader_name=='train' or len(dloader)==0 or loader_name[0]=='_': continue
             for metric_name, metric_value in self.metrics(dloader).items():
                 metrics[loader_name+'_'+metric_name] = metric_value
         self.logger.add_scalars('metrics', metrics, step)
@@ -74,8 +74,7 @@ class Trainer(object,metaclass=Named):
                 m.log_data(self.logger,step,name)
         self.logger.report()
     
-    def evalAverageMetrics(self, loader,metrics):
-        #if losses is None: losses = lambda mb: self.loss(mb).cpu().data.numpy()
+    def evalAverageMetrics(self,loader,metrics):
         num_total, loss_totals = 0, 0
         with Eval(self.model), torch.no_grad():
             for minibatch in loader:
