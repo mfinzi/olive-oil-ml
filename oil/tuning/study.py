@@ -168,7 +168,7 @@ class train_trial(object):
         try:
             cfg.pop('local_rank') #TODO: properly handle distributed
             if i is not None:
-                cfg['trainer_config']['log_suffix'] = 'trial{}/'.format(i)
+                cfg.setdefault('trainer_config',{})['log_suffix'] = 'trial{}/'.format(i)
             trainer = self.make_trainer(**cfg)
             try: cfg['params(M)'] = sum(p.numel() for p in trainer.model.parameters() if p.requires_grad)/10**6
             except AttributeError: pass

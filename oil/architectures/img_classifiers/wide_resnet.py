@@ -49,7 +49,7 @@ class WideBasic(nn.Module):
 
 @export
 class WideResNet(nn.Module,metaclass=Named):
-    def __init__(self, num_classes=10, depth=28, widen_factor=10, drop_rate=0.3):
+    def __init__(self, num_targets=10, depth=28, widen_factor=10, drop_rate=0.3):
         super(WideResNet, self).__init__()
         self.in_planes = 16
 
@@ -64,7 +64,7 @@ class WideResNet(nn.Module,metaclass=Named):
         self.layer2 = self._wide_layer(WideBasic, nstages[2], n, drop_rate, stride=2)
         self.layer3 = self._wide_layer(WideBasic, nstages[3], n, drop_rate, stride=2)
         self.bn1 = nn.BatchNorm2d(nstages[3])#, momentum=0.9)
-        self.linear = nn.Linear(nstages[3], num_classes)
+        self.linear = nn.Linear(nstages[3], num_targets)
 
     def _wide_layer(self, block, planes, num_blocks, drop_rate, stride):
         strides = [stride] + [1] * int(num_blocks - 1)
@@ -90,5 +90,5 @@ class WideResNet(nn.Module,metaclass=Named):
         
 @export
 class WideResNet28x10(WideResNet):
-    def __init__(self,num_classes=10,drop_rate=.3):
-        super().__init__(num_classes,depth=28, widen_factor=10,drop_rate=drop_rate)
+    def __init__(self,num_targets=10,drop_rate=.3):
+        super().__init__(num_targets,depth=28, widen_factor=10,drop_rate=drop_rate)

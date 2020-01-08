@@ -46,7 +46,7 @@ class EasyIMGDataset(Dataset,metaclass=Named):
 class CIFAR10(EasyIMGDataset,ds.CIFAR10):
     means = (0.4914, 0.4822, 0.4465)
     stds = (.247,.243,.261)
-    num_classes=10
+    num_targets=10
     def default_aug_layers(self):
         return nn.Sequential(
         augLayers.RandomTranslate(4),
@@ -56,7 +56,7 @@ class CIFAR10(EasyIMGDataset,ds.CIFAR10):
 class CIFAR100(EasyIMGDataset,ds.CIFAR100):
     means = (0.5071, 0.4867, 0.4408)
     stds = (0.2675, 0.2565, 0.2761)
-    num_classes=100
+    num_targets=100
     def default_aug_layers(self):
         return nn.Sequential(
         augLayers.RandomTranslate(4),
@@ -67,7 +67,7 @@ class SVHN(EasyIMGDataset,ds.SVHN):
     #TODO: Find real mean and std
     means = (0.5, 0.5, 0.5)
     stds = (0.25, 0.25, 0.25)
-    num_classes=10
+    num_targets=10
     def default_aug_layers(self):
         return nn.Sequential(
         augLayers.RandomTranslate(4),

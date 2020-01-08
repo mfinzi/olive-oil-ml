@@ -23,7 +23,7 @@ __all__ = ['ShakeShake26','ResNext152']
 
 
 class ResNet224x224(nn.Module,metaclass=Named):
-    def __init__(self, block, layers, channels, groups=1, num_classes=1000, downsample='basic'):
+    def __init__(self, block, layers, channels, groups=1, num_targets=1000, downsample='basic'):
         super().__init__()
         assert len(layers) == 4
         self.downsample_mode = downsample
@@ -42,7 +42,7 @@ class ResNet224x224(nn.Module,metaclass=Named):
             block, channels * 8, groups, layers[3], stride=2)
         self.avgpool = nn.AvgPool2d(7)
         self.fc1 = nn.Linear(block.out_channels(
-            channels * 8, groups), num_classes)
+            channels * 8, groups), num_targets)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -90,7 +90,7 @@ class ResNet224x224(nn.Module,metaclass=Named):
 
 
 class ResNet32x32(nn.Module,metaclass=Named):
-    def __init__(self, block, layers, channels, groups=1, num_classes=1000, downsample='basic'):
+    def __init__(self, block, layers, channels, groups=1, num_targets=1000, downsample='basic'):
         super().__init__()
         assert len(layers) == 3
         self.downsample_mode = downsample
@@ -104,7 +104,7 @@ class ResNet32x32(nn.Module,metaclass=Named):
             block, channels * 4, groups, layers[2], stride=2)
         self.avgpool = nn.AvgPool2d(8)
         self.fc1 = nn.Linear(block.out_channels(
-            channels * 4, groups), num_classes)
+            channels * 4, groups), num_targets)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -291,16 +291,16 @@ class ShiftConvDownsample(nn.Module):
         return x
 
 class ShakeShake26(ResNet32x32):
-    def __init__(self,num_classes=10):
+    def __init__(self,num_targets=10):
         super().__init__(ShakeShakeBlock,
                         layers=[4, 4, 4],
                         channels=96,
-                        downsample='shift_conv', num_classes=num_classes)
+                        downsample='shift_conv', num_targets=num_targets)
 
 class ResNext152(ResNet224x224):
-    def __init__(self,num_classes=10):
+    def __init__(self,num_targets=10):
         super().__init__(BottleneckBlock,
                         layers=[3, 8, 36, 3],
                         channels=32 * 4,
                         groups=32,
-                        downsample='basic', num_classes=num_classes)
+                        downsample='basic', num_targets=num_targets)

@@ -35,7 +35,7 @@ cfg = {
 
 
 class VGG(nn.Module,metaclass=Named):
-    def __init__(self, num_classes=10, depth=16, batch_norm=False):
+    def __init__(self, num_targets=10, depth=16, batch_norm=False):
         super(VGG, self).__init__()
         self.features = make_layers(cfg[depth], batch_norm)
         self.classifier = nn.Sequential(
@@ -45,7 +45,7 @@ class VGG(nn.Module,metaclass=Named):
             nn.Dropout(),
             nn.Linear(512, 512),
             nn.ReLU(True),
-            nn.Linear(512, num_classes),
+            nn.Linear(512, num_targets),
         )
 
         for m in self.modules():
@@ -61,8 +61,8 @@ class VGG(nn.Module,metaclass=Named):
         return x
 
 class VGG16(VGG):
-    def __init__(self,num_classes=10):
-        super().__init__(num_classes=num_classes,depth=16,batch_norm=False)
+    def __init__(self,num_targets=10):
+        super().__init__(num_targets=num_targets,depth=16,batch_norm=False)
 class VGG16BN(VGG):
-    def __init__(self,num_classes=10):
-        super().__init__(num_classes=num_classes,depth=16,batch_norm=True)
+    def __init__(self,num_targets=10):
+        super().__init__(num_targets=num_targets,depth=16,batch_norm=True)

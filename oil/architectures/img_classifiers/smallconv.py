@@ -34,9 +34,9 @@ class smallCNN(nn.Module,metaclass=Named):
     """
     Very small CNN
     """
-    def __init__(self, num_classes=10,k=16):
+    def __init__(self, num_targets=10,k=16):
         super().__init__()
-        self.num_classes = num_classes
+        self.num_targets = num_targets
         self.net = nn.Sequential(
             ConvBNrelu(3,k),
             ConvBNrelu(k,k),
@@ -50,7 +50,7 @@ class smallCNN(nn.Module,metaclass=Named):
             ConvBNrelu(2*k,2*k),
             ConvBNrelu(2*k,2*k),
             Expression(lambda u:u.mean(-1).mean(-1)),
-            nn.Linear(2*k,num_classes)
+            nn.Linear(2*k,num_targets)
         )
     def forward(self,x):
         return self.net(x)
@@ -60,9 +60,9 @@ class layer13s(nn.Module,metaclass=Named):
     """
     Very small CNN
     """
-    def __init__(self, num_classes=10,k=128):
+    def __init__(self, num_targets=10,k=128):
         super().__init__()
-        self.num_classes = num_classes
+        self.num_targets = num_targets
         self.net = nn.Sequential(
             ConvBNrelu(3,k),
             ConvBNrelu(k,k),
@@ -78,7 +78,7 @@ class layer13s(nn.Module,metaclass=Named):
             ConvBNrelu(2*k,2*k),
             ConvBNrelu(2*k,2*k),
             Expression(lambda u:u.mean(-1).mean(-1)),
-            nn.Linear(2*k,num_classes)
+            nn.Linear(2*k,num_targets)
         )
     def forward(self,x):
         return self.net(x)
@@ -88,9 +88,9 @@ class layer13d(nn.Module,metaclass=Named):
     """
     Very small CNN
     """
-    def __init__(self, num_classes=10,k=128):
+    def __init__(self, num_targets=10,k=128):
         super().__init__()
-        self.num_classes = num_classes
+        self.num_targets = num_targets
         self.net = nn.Sequential(
             ConvDrelu(3,k),
             ConvDrelu(k,k),
@@ -106,7 +106,7 @@ class layer13d(nn.Module,metaclass=Named):
             ConvDrelu(2*k,2*k),
             ConvDrelu(2*k,2*k),
             Expression(lambda u:u.mean(-1).mean(-1)),
-            nn.Linear(2*k,num_classes)
+            nn.Linear(2*k,num_targets)
         )
     def forward(self,x):
         return self.net(x)

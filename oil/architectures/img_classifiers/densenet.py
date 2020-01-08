@@ -81,7 +81,7 @@ class Transition(nn.Module):
 class DenseNet(nn.Module,metaclass=Named):
 
     def __init__(self, depth=22, block=Bottleneck, 
-        drop_rate=0, num_classes=10, k=12, compressionRate=2):
+        drop_rate=0, num_targets=10, k=12, compressionRate=2):
         super(DenseNet, self).__init__()
 
         assert (depth - 4) % 3 == 0, 'depth should be 3n+4'
@@ -103,7 +103,7 @@ class DenseNet(nn.Module,metaclass=Named):
         self.bn = nn.BatchNorm2d(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
         self.avgpool = nn.AvgPool2d(8)
-        self.fc = nn.Linear(self.inplanes, num_classes)
+        self.fc = nn.Linear(self.inplanes, num_targets)
 
         # Weight initialization
         for m in self.modules():
@@ -146,9 +146,9 @@ class DenseNet(nn.Module,metaclass=Named):
         return x
 
 class DenseNetBC12(DenseNet):
-    def __init__(self,num_classes=10,drop_rate=0):
-        super().__init__(depth=100,k=12,drop_rate=drop_rate,num_classes=num_classes)
+    def __init__(self,num_targets=10,drop_rate=0):
+        super().__init__(depth=100,k=12,drop_rate=drop_rate,num_targets=num_targets)
 
 class DenseNetBC40(DenseNet):
-    def __init__(self,num_classes=10,drop_rate=0):
-        super().__init__(depth=190,k=40,drop_rate=drop_rate,num_classes=num_classes)
+    def __init__(self,num_targets=10,drop_rate=0):
+        super().__init__(depth=190,k=40,drop_rate=drop_rate,num_targets=num_targets)

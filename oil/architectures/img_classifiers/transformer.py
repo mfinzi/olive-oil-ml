@@ -236,9 +236,9 @@ class layer13a(nn.Module,metaclass=Named):
     """
     Very small CNN
     """
-    def __init__(self, num_classes=10,k=64,ksize=7,num_heads=8):
+    def __init__(self, num_targets=10,k=64,ksize=7,num_heads=8):
         super().__init__()
-        self.num_classes = num_classes
+        self.num_targets = num_targets
         self.net = nn.Sequential(
             conv2d(3,k,1),#AttConvReplacement(3,k,ksize),
             *[AttResBlock(k,ksize,num_heads=num_heads) for i in range(3)],
@@ -248,7 +248,7 @@ class layer13a(nn.Module,metaclass=Named):
             nn.AvgPool2d(2),
             *[AttResBlock(2*k,ksize,num_heads=num_heads) for i in range(3)],
             Expression(lambda u:u.mean(-1).mean(-1)),
-            nn.Linear(2*k,num_classes)
+            nn.Linear(2*k,num_targets)
         )
     def forward(self,x):
         return self.net(x)
@@ -286,9 +286,9 @@ class layer13at(nn.Module,metaclass=Named):
     """
     Very small CNN
     """
-    def __init__(self, num_classes=10,k=64,ksize=5,num_heads=8):
+    def __init__(self, num_targets=10,k=64,ksize=5,num_heads=8):
         super().__init__()
-        self.num_classes = num_classes
+        self.num_targets = num_targets
         self.net = nn.Sequential(
             conv2d(3,k,1),#AttConvReplacement(3,k,ksize),
             *[TransformerBlock(k,ksize,num_heads) for _ in range(2)],
@@ -298,7 +298,7 @@ class layer13at(nn.Module,metaclass=Named):
             nn.AvgPool2d(2),
              *[TransformerBlock(2*k,ksize,num_heads) for _ in range(2)],
             Expression(lambda u:u.mean(-1).mean(-1)),
-            nn.Linear(2*k,num_classes)
+            nn.Linear(2*k,num_targets)
         )
     def forward(self,x):
         return self.net(x)

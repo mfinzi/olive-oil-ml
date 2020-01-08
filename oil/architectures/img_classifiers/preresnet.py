@@ -89,7 +89,7 @@ class Bottleneck(nn.Module):
 
 class PreResNet(nn.Module,metaclass=Named):
 
-    def __init__(self, num_classes=10, depth=110):
+    def __init__(self, num_targets=10, depth=110):
         super(PreResNet, self).__init__()
         assert (depth - 2) % 6 == 0, 'depth should be 6n+2'
         n = (depth - 2) // 6
@@ -105,7 +105,7 @@ class PreResNet(nn.Module,metaclass=Named):
         self.bn = nn.BatchNorm2d(64 * block.expansion)
         self.relu = nn.ReLU(inplace=True)
         self.avgpool = nn.AvgPool2d(8)
-        self.fc = nn.Linear(64 * block.expansion, num_classes)
+        self.fc = nn.Linear(64 * block.expansion, num_targets)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -148,9 +148,9 @@ class PreResNet(nn.Module,metaclass=Named):
 
 
 class PreResNet56(PreResNet):
-    def __init__(self,num_classes=10):
-        super().__init__(num_classes=num_classes,depth=56)
+    def __init__(self,num_targets=10):
+        super().__init__(num_targets=num_targets,depth=56)
 
 class PreResNet110(PreResNet):
-    def __init__(self,num_classes=10):
-        super().__init__(num_classes=num_classes,depth=110)
+    def __init__(self,num_targets=10):
+        super().__init__(num_targets=num_targets,depth=110)

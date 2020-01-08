@@ -100,6 +100,13 @@ smethods =    '''__bool__ __int__ __float__ __complex__ __index__
 for sm in smethods:
     setattr(Wrapper, sm, lambda self, *args, sm=sm: Wrapper.__getattr__(self,sm)(*args))
 
+class dmap(Wrapper):
+    def __init__(self,func,dataset):
+        super().__init__(dataset)
+        self._func = func
+    def __getitem__(self,i):
+        return self._func(super().__getitem__(i))
+
 class imap(Wrapper):
     def __init__(self,func,loader):
         super().__init__(loader)

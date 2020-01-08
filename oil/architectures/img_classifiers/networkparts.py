@@ -34,9 +34,9 @@ class layer13(nn.Module,metaclass=Named):
     CNN from Mean Teacher paper
     """
     
-    def __init__(self, num_classes=10):
+    def __init__(self, num_targets=10):
         super().__init__()
-        self.numClasses = num_classes
+        self.numClasses = num_targets
         self.activation = nn.LeakyReLU(0.1)
         self.conv1a = weight_norm(nn.Conv2d(3, 128, 3, padding=1))
         self.bn1a = nn.BatchNorm2d(128)
@@ -64,7 +64,7 @@ class layer13(nn.Module,metaclass=Named):
         self.bn3c = nn.BatchNorm2d(128)
         self.ap3 = nn.AvgPool2d(6, stride=2, padding=0)
         
-        self.fc1 =  weight_norm(nn.Linear(128, num_classes))
+        self.fc1 =  weight_norm(nn.Linear(128, num_targets))
     
     def forward(self, x, getFeatureVec=False):
         x = self.activation(self.bn1a(self.conv1a(x)))
