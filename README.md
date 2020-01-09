@@ -15,10 +15,10 @@ To install, run "pip install ." in the snake-oil-ml folder. Dependencies will be
 
 # Dependencies
 * Python 3.7+
-* [PyTorch](http://pytorch.org/) version 1.0.0
+* [PyTorch](http://pytorch.org/) 1.3.0+
 * [torchvision](https://github.com/pytorch/vision/)
 * (optional) [tensorboardX](https://github.com/lanpa/tensorboardX)
-* (optional) [tqdm](https://tqdm.github.io/)
+* (optional) [tqdm](https://tqdm.github.io/) 4.40+
 
 # Jump into training a single model
 
