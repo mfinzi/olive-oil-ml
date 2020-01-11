@@ -11,7 +11,7 @@ Features:
 * Clean implementation of popular methods/problems in CV such as Vanilla Image Classification, Regression, the PiModel for Semi-Supervised learning, and SN-GAN; all through the common Trainer abstraction
 
 # Installation
-To install, run "pip install git+https://github.com/mfinzi/snake-oil-ml". Dependencies will be checked and installed from the setup.py file.
+To install, run `pip install git+https://github.com/mfinzi/snake-oil-ml`. Dependencies will be checked and installed from the setup.py file.
 
 # Dependencies
 * Python 3.7+
