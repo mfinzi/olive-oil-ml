@@ -9,8 +9,8 @@ setup(name="snake-oil-ml",
       license='MIT',
       install_requires=['torch>=1.3','torchvision','pandas','numpy','matplotlib','dill','tqdm>=4.40'
       'sklearn','torchcontrib'],
-      extra_require = {
-            'tb':['tensorboardX']
+      extras_require = {
+            'TBX':['tensorboardX']
             },
       packages=find_packages(),#["oil",],#find_packages()
       long_description=open('README.md').read(),
