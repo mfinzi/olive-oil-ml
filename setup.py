@@ -10,9 +10,9 @@ setup(name="snake-oil-ml",
       python_requires='>=3.7',
       install_requires=['torch>=1.3','torchvision','pandas','numpy','matplotlib','dill','tqdm>=4.40'
       'sklearn','torchcontrib'],
-      extra_require = {
-            'tb':['tensorboardX']
-            }#,'torch-scatter','torch-sparse','torch-cluster','torch-geometric','torch-spline-conv'],
+      extras_require = {
+            'TBX':['tensorboardX']
+            },
       packages=find_packages(),#["oil",],#find_packages()
       long_description=open('README.md').read(),
 )
