@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import DataLoader
 from torch.optim import SGD
-from oil.utils.utils import LoaderTo, cosLr, islice
+from oil.utils.utils import LoaderTo, cosLr, islice, export
 from oil.tuning.study import train_trial
 from oil.datasetup.datasets import CIFAR10, split_dataset
 from oil.architectures.img_classifiers import layer13
@@ -34,6 +34,5 @@ def makeTrainer(*,dataset=CIFAR10,network=layer13,num_epochs=100,
     return trainer(model,dataloaders,opt_constr,lr_sched,**trainer_config)
 
 simpleTrial = train_trial(makeTrainer)
-
 if __name__=='__main__':
     simpleTrial(argupdated_config(makeTrainer.__kwdefaults__))

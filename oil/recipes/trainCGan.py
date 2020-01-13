@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 from torch.optim import Adam
 from oil.model_trainers.cGan import cGan
 from oil.architectures.img_gen import conditionalgan as cgan
-from oil.utils.utils import LoaderTo, cosLr, islice, dmap
+from oil.utils.utils import LoaderTo, cosLr, islice, dmap,export
 from oil.tuning.study import train_trial
 from oil.datasetup.datasets import CIFAR10
 from oil.utils.parallel import try_multigpu_parallelize

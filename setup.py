@@ -7,7 +7,7 @@ setup(name="snake-oil-ml",
       author='Marc Finzi',
       author_email='maf388@cornell.edu',
       license='MIT',
-      install_requires=['torch','torchvision','pandas','numpy','matplotlib','dill','tqdm'
+      install_requires=['torch>=1.3','torchvision','pandas','numpy','matplotlib','dill','tqdm>=4.40'
       'sklearn','torchcontrib'],
       extra_require = {
             'tb':['tensorboardX']

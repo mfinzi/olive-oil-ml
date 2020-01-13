@@ -11,24 +11,27 @@ Features:
 * Clean implementation of popular methods/problems in CV such as Vanilla Image Classification, Regression, the PiModel for Semi-Supervised learning, and SN-GAN; all through the common Trainer abstraction
 
 # Installation
-To install, run "pip install ." in the snake-oil-ml folder. Dependencies will be checked and installed from the setup.py file.
+To install, run `pip install git+https://github.com/mfinzi/snake-oil-ml`. Dependencies will be checked and installed from the setup.py file.
 
 # Dependencies
-* Python 3.6+
-* [PyTorch](http://pytorch.org/) version 1.0.0
+* Python 3.7+
+* [PyTorch](http://pytorch.org/) 1.3.0+
 * [torchvision](https://github.com/pytorch/vision/)
+* [tqdm](https://tqdm.github.io/) 4.40+
 * (optional) [tensorboardX](https://github.com/lanpa/tensorboardX)
-* (optional) [tqdm](https://tqdm.github.io/)
 
 # Jump into training a single model
 
 To get a feel for the library, try training a (Classifier, Regressor, PiModel, GAN) model from our recipes.
 For classification try running 
-* ```python snake-oil-ml/oil/recipes/simpleTrial.py --dataset CIFAR100 --num_epochs 10```
+* `python snake-oil-ml/oil/recipes/simpleTrial.py --dataset CIFAR100 --num_epochs 10`
+
 Or, to train a conditional GAN model: 
-* ```python snake-oil-ml/oil/recipes/simpleCGan.py --dataset SVHN --lr 2e-4```
+* `python snake-oil-ml/oil/recipes/simpleCGan.py --dataset SVHN --lr 2e-4`
+
 Or train a PiModel semisupervised on CIFAR10 using only 1k labels: 
-* ```python snake-oil-ml/oil/recipes/simplePi.py --dataset CIFAR10 --train 1000```
+* `python snake-oil-ml/oil/recipes/simplePi.py --dataset CIFAR10 --train 1000`
+
 
 You can use `-h` to see the full range of arguments available. Command line arguments and defaults are automatically inferred
 from the code used to construct the trial, so you can make a new trial (that uses some exotic data augmentation strategy for example) and the command line parser will generated for you, see the example recipes for how this works.
