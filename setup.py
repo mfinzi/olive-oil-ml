@@ -11,7 +11,7 @@ setup(name="snake-oil-ml",
       'sklearn','torchcontrib'],
       extra_require = {
             'tb':['tensorboardX']
-            }#,'torch-scatter','torch-sparse','torch-cluster','torch-geometric','torch-spline-conv'],
+            },
       packages=find_packages(),#["oil",],#find_packages()
       long_description=open('README.md').read(),
 )
