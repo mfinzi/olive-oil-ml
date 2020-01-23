@@ -103,7 +103,10 @@ def unflatten(d,sep='/'):
                     dict_to_modify[partial_key] = {}
                     dict_to_modify = dict_to_modify[partial_key]
                 # Base level reached
-            dict_to_modify[keys[-1]] = v
+            if keys[-1] in dict_to_modify:
+                dict_to_modify[keys[-1]].update(v)
+            else:
+                dict_to_modify[keys[-1]] = v
         else: out_dict[k]=v
     return out_dict
 
