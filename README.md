@@ -18,6 +18,7 @@ To install, run `pip install git+https://github.com/mfinzi/snake-oil-ml`. Depend
 * [PyTorch](http://pytorch.org/) 1.3.0+
 * [torchvision](https://github.com/pytorch/vision/)
 * [tqdm](https://tqdm.github.io/) 4.40+
+* [natsort]()
 * (optional) [tensorboardX](https://github.com/lanpa/tensorboardX)
 
 # Jump into training a single model

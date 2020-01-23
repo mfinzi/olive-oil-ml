@@ -6,6 +6,7 @@ from ..utils.mytqdm import tqdm
 import copy, os, random
 import glob
 import numpy as np
+from natsort import natsorted
 
 class Trainer(object,metaclass=Named):
     """ Base trainer
@@ -25,10 +26,16 @@ class Trainer(object,metaclass=Named):
         self.logger = LazyLogger(log_dir, log_suffix, **log_args)
         #self.logger.add_text('ModelSpec','model: {}'.format(model))
         self.hypers = {}
-        
+    
+    def metrics(self,loader):
+        return {}
+
+    def loss(self,minibatch):
+        raise NotImplementedError
 
     def train_to(self, final_epoch=100):
-        return self.train(final_epoch-self.epoch)
+        assert final_epoch>=self.epoch, "trying to train less than already trained"
+        self.train(final_epoch-self.epoch)
 
     def train(self, num_epochs=100):
         """ The main training loop"""
@@ -42,7 +49,6 @@ class Trainer(object,metaclass=Named):
                 self.step(minibatch)
                 [sched.step(step/steps_per_epoch) for sched in self.lr_schedulers]
         self.logStuff(step)
-        return self.logger.emas()
 
     def step(self, minibatch):
         self.optimizer.zero_grad()
@@ -50,9 +56,6 @@ class Trainer(object,metaclass=Named):
         loss.backward()
         self.optimizer.step()
         return loss
-    
-    def metrics(self,loader):
-        return {}
 
     def logStuff(self, step, minibatch=None):
         metrics = {}
@@ -85,49 +88,30 @@ class Trainer(object,metaclass=Named):
         if num_total==0: raise KeyError("dataloader is empty")
         return loss_totals/num_total
 
-    # def state_dict(self):
-    #     state = {
-    #         'epoch':self.epoch,
-    #         'model_state':self.model.state_dict(),
-    #         'optim_state':self.optimizer.state_dict(),
-    #         'logger_state':self.logger.state_dict(),
-    #     }
-    #     return state
+    def state_dict(self):
+        state = {
+            'epoch':self.epoch,
+            'model_state':self.model.state_dict(),
+            'optim_state':self.optimizer.state_dict(),
+            'logger_state':self.logger.state_dict(),
+        }
+        return state
 
-    # def load_state_dict(self,state):
-    #     self.epoch = state['epoch']
-    #     self.model.load_state_dict(state['model_state'])
-    #     self.optimizer.load_state_dict(state['optim_state'])
-    #     self.logger.load_state_dict(state['logger_state'])
+    def load_state_dict(self,state):
+        self.epoch = state['epoch']
+        self.model.load_state_dict(state['model_state'])
+        self.optimizer.load_state_dict(state['optim_state'])
+        self.logger.load_state_dict(state['logger_state'])
 
+    def load_checkpoint(self,path=None):
+        """ Loads the checkpoint from path, if None gets the highest epoch checkpoint"""
+        if not path:
+            chkpts = glob.glob(os.path.join(self.logger.log_dirr,'checkpoints/c*.state'))
+            path = natsorted(chkpts)[-1] # get most recent checkpoint
+            print(f"loading checkpoint {path}")
+        with open(path,'rb'):
+            self.load_state_dict(dill.load(path))
 
-    # def default_save_path(self,save_path = None,suffix=''):
-    #     if save_path is None: 
-    #         checkpoint_save_dir = self.logger.log_dir + 'checkpoints/'
-    #         save_path = checkpoint_save_dir + 'c{}{}.ckpt'.format(self.epoch+1,suffix)
-    #         #save_path_all = checkpoint_save_dir + 'c.{}.dump'.format(self.epoch)
-    #     else:
-    #         checkpoint_save_dir = os.path.dirname(save_path)
-    #       # so that we use the same subset of data as before
-    #     os.makedirs(checkpoint_save_dir, exist_ok=True)
-    #     return save_path
-
-    # def save_checkpoint(self, save_path = None, suffix=''):
-    #     save_path = self.default_save_path(save_path,suffix+'.ckpt')
-    #     torch.save(self.state_dict(), save_path, pickle_module=dill)
-    #     return save_path
-
-    # def load_checkpoint(self, load_path = None):
-    #     if load_path is None:
-    #         all_ckpts = glob.glob(self.logger.log_dir+'checkpoints/*.ckpt')
-    #         #TODO: Fix ordering bug where 1,10,11,12,...,19,2,20,21,...
-    #         #  -- use natsort
-    #         load_path = all_ckpts[-1]
-    #     if os.path.isfile(load_path):
-    #         print("=> loading checkpoint '{}'".format(load_path))
-    #         state = torch.load(load_path, pickle_module=dill)
-    #         self.load_state_dict(state)
-    #     else:
-    #         print("=> no checkpoint found at '{}'".format(load_path))
-
+    def save_checkpoint(self):
+        return self.logger.save_object(self.state_dict(),suffix=f'checkpoints/c{self.epoch}.state')
 

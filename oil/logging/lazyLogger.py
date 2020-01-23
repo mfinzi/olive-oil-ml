@@ -150,7 +150,7 @@ class LazyLogger(LogTimer, MaybeTbWriterWSerial):
             dill.dump(obj,file)
         #torch.save(obj,final_path,pickle_module=dill)
         return os.path.abspath(final_path)
-
+        
     def state_dict(self):
         # Will there be a problem with pickling the log_timer here?
         return {'text':self.text,'constants':self.constants,
