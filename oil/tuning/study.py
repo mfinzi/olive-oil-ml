@@ -77,10 +77,12 @@ class Study(object):
         #     print(self.outcomes.iloc[-1:])
         # self.save_loc = self.logger.save_object(self,'study.s')
 
-    def run(self, num_trials=None, max_workers=None, new_config_spec=None,ordered=True):
+    def run(self, num_trials=-1, max_workers=None, new_config_spec=None,ordered=True):
         """ runs the study with num_trials and max_workers slurm nodes
             trials are executed in parallel by the slurm nodes, study object
-            is updated and saved as results come in """
+            is updated and saved as results come in. A results df is pickled as results.df,
+            if num_trials is a negative integer, then num_trials is interpreted as -num_trials
+            full passes through the grid."""
         if new_config_spec: self.config_spec=new_config_spec
         with self.Executor(max_workers) as executor:
             start_id = len(self.configs)
@@ -91,6 +93,7 @@ class Study(object):
             #                                 total=len(futures),desc=self.name)):
             #     cfg, outcome = future.result()
             j=0
+            progress_bar = tqdm(total=len(futures),desc=self.name)
             while futures:
                 for future in futures:
                     if future.done():
@@ -102,13 +105,17 @@ class Study(object):
                         with pd.option_context('display.expand_frame_repr',False):
                             print(self.configs.iloc[-1:])
                             print(self.outcomes.iloc[-1:])
+                        self.logger.save_object(self.results_df(),'results.df')
                         self.save_loc = self.logger.save_object(self,'study.s')
+
+                        progress_bar.update(1)
                         j+=1
                         break
                 else:
                     self.process_user_input(executor)
                     continue
                 futures.remove(future)
+            progress_bar.close()
         return self.save_loc
         # we could pass in a function that outputs the generator, and that function
         # can be pickled (by dill)
@@ -120,6 +127,12 @@ class Study(object):
         """ Returns the subset of columns from configs that is not all the same"""
         columns_that_vary = self.configs.apply(pd.Series.nunique,axis=0)!=1
         return self.configs.T[columns_that_vary].T
+
+    def results_df(self):
+        outcomes_df = self.outcomes.reset_index(drop=True)
+        covariates_df = self.covariates().reset_index(drop=True)
+        combined_df = pd.concat([covariates_df,outcomes_df],axis=1)
+        return combined_df
 
     #TODO: add argument for objective when multiple possible exist, compute for each dataset?
     def print_best_sofar(self):

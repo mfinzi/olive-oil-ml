@@ -146,7 +146,9 @@ class LazyLogger(LogTimer, MaybeTbWriterWSerial):
     def save_object(self,obj,suffix):
         final_path = os.path.join(self.log_dirr,suffix)
         os.makedirs(os.path.dirname(final_path),exist_ok=True)
-        torch.save(obj,final_path,pickle_module=dill)
+        with open(final_path,'wb') as file:
+            dill.dump(obj,file)
+        #torch.save(obj,final_path,pickle_module=dill)
         return os.path.abspath(final_path)
 
     def state_dict(self):

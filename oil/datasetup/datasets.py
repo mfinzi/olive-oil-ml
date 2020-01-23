@@ -110,7 +110,8 @@ def split_dataset(dataset,splits):
             new_split_ids = indices
             indices = indices[:0]
         else:
-            indices, new_split_ids = train_test_split(indices,test_size=split_count,stratify=y[indices])  
+            strat = None if y is None else y[indices]
+            indices, new_split_ids = train_test_split(indices,test_size=split_count,stratify=strat)  
         split_datasets[split_name] = IndexedDataset(dataset,new_split_ids)
     return split_datasets
 

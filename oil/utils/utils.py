@@ -157,16 +157,16 @@ class icycle(Wrapper):
 #             self.loader.__setattr__(name,value)
 #         else: super().__setattr__(name,value)
 
-def minibatch_to(device,mb):
-	try: return mb.to(device)
+def minibatch_to(mb,device=None,dtype=None):
+	try: return mb.to(device=device,dtype=dtype)
 	except AttributeError:
 		if isinstance(mb,dict):
-			return type(mb)(((k,minibatch_to(device,v)) for k,v in mb.items()))
+			return type(mb)(((k,minibatch_to(v,device,dtype)) for k,v in mb.items()))
 		else:
-			return type(mb)(minibatch_to(device,elem) for elem in mb)
+			return type(mb)(minibatch_to(elem,device,dtype) for elem in mb)
 import functools
-def LoaderTo(loader,device):
-    return imap(functools.partial(minibatch_to,device),loader)
+def LoaderTo(loader,device=None,dtype=None):
+    return imap(functools.partial(minibatch_to,device=device,dtype=dtype),loader)
 
 # class LoaderTo(torch.utils.data.DataLoader):
 #     def __init__(self,loader, device):
