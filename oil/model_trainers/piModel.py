@@ -1,6 +1,7 @@
 from .classifier import Classifier
 from ..utils.losses import softmax_mse_loss, softmax_mse_loss_both
 from ..utils.utils import Eval, izip, icycle
+import torch.nn as nn
 
 class PiModel(Classifier):
     def __init__(self, *args, cons_weight=15,
