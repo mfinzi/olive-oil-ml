@@ -19,7 +19,8 @@ class Trainer(object,metaclass=Named):
         self.model = model
 
         self.optimizer = opt_constr(self.model.parameters())
-        self.lr_schedulers = [optim.lr_scheduler.LambdaLR(self.optimizer,lr_sched)]
+        try: self.lr_schedulers = [lr_sched(optimizer=self.optimizer)]
+        except TypeError: self.lr_schedulers = [optim.lr_scheduler.LambdaLR(self.optimizer,lr_sched)]
         self.dataloaders = dataloaders # A dictionary of dataloaders
         self.epoch = 0
 
