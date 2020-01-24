@@ -27,13 +27,9 @@ def argupdated_config(cfg,parser=None, namespace=None):
 
     parser.add_argument("--local_rank",type=int) # so that distributed will work #TODO: sort this out properly
     args = parser.parse_args()
-    if namespace is not None:
-        globals().update({k: getattr(namespace, k) for k in namespace.__all__})
+    add_to_namespace(namespace)
     for short_argname, argvalue in vars(args).items():
-        if isinstance(argvalue,str):
-            try: argvalue = eval(argvalue) # Try to evaluate the strings
-            except (NameError, SyntaxError):
-                pass # Interpret just as string
+        argvalue = tryeval(argvalue)
         if short_argname in clobbered_name_mapping: # There may be additional args from argparse
             flat_cfg[clobbered_name_mapping[short_argname]] = argvalue
         else:
@@ -42,3 +38,21 @@ def argupdated_config(cfg,parser=None, namespace=None):
     extra_flat_cfg = flatten(flat_cfg)
     updated_full_cfg = unflatten(extra_flat_cfg) # Flatten again
     return updated_full_cfg
+    
+def add_to_namespace(namespace):
+    if namespace is not None:
+        if not isinstance(namespace,tuple):
+            namespace = (namespace,)
+        for ns in namespace:
+            globals().update({k: getattr(ns, k) for k in ns.__all__})
+
+def tryeval(value):
+    if isinstance(value,dict):
+        return {k:tryeval(v) for k,v in value.items()}
+    elif isinstance(value,str):
+        try: 
+            return eval(value) # Try to evaluate the strings
+        except (NameError, SyntaxError):
+            return value # Interpret just as string
+    else:
+        return value
