@@ -11,7 +11,7 @@ from oil.model_trainers.classifier import Classifier
 from functools import partial
 
 def makeTrainer(*,dataset=CIFAR10,network=layer13,num_epochs=100,
-                bs=50,lr=.1,optim=SGD,device='cuda',trainer=Classifier,
+                bs=50,lr=.1,aug=True,optim=SGD,device='cuda',trainer=Classifier,
                 split={'train':-1,'val':.1},net_config={},opt_config={},
                 trainer_config={'log_dir':None}):
 
@@ -20,8 +20,8 @@ def makeTrainer(*,dataset=CIFAR10,network=layer13,num_epochs=100,
     datasets['test'] = dataset(f'~/datasets/{dataset}/', train=False)
 
     device = torch.device(device)
-    net = network(num_targets=datasets['train'].num_targets,**net_config)
-    model = torch.nn.Sequential(datasets['train'].default_aug_layers(),net).to(device)
+    model = network(num_targets=datasets['train'].num_targets,**net_config).to(device)
+    if aug: model = torch.nn.Sequential(datasets['train'].default_aug_layers(),model)
     model,bs = try_multigpu_parallelize(model,bs)
 
     dataloaders = {k:LoaderTo(DataLoader(v,batch_size=bs,shuffle=(k=='train'),
