@@ -187,7 +187,8 @@ class train_trial(object):
             save = cfg.pop('save',False)
             early_stop_metric = cfg.pop('early_stop_metric',None)
             if i is not None:
-                cfg.setdefault('trainer_config',{})['log_suffix'] = 'trial{}/'.format(i)
+                orig_suffix = cfg.setdefault('trainer_config',{}).get('log_suffix','')
+                cfg['trainer_config']['log_suffix'] = os.path.join(orig_suffix,f'trial{i}/')
                 
             trainer = self.make_trainer(**cfg)
             try: cfg['params(M)'] = sum(p.numel() for p in trainer.model.parameters() if p.requires_grad)/10**6
