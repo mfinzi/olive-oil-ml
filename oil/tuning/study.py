@@ -172,6 +172,17 @@ def cleanup_cuda():
     if os.environ.copy().get("WORLD_SIZE",0)!=0:
         torch.distributed.destroy_process_group()
 
+def guess_metric_sign(metric_name):
+    """ Returns true if metric should be maximized and false for minimize"""
+    name = metric_name.lower()
+    positive_metrics = ['acc','map','precision','score','reward']
+    negative_metrics = ['mse','mae','loss','bpd','nll','err']
+    if any(substring in name for substring in positive_metrics):
+        return True
+    elif any(substring in name for substring in negative_metrics):
+        return False
+    else:
+        assert False, "Unknown sign for early stopping metric "+name
 
 class train_trial(object):
     """ Assumes trainer is an object of type Trainer, trains for num_epochs which may be an
@@ -203,7 +214,9 @@ class train_trial(object):
                 trainer.train_to(epoch)
                 if save: cfg['saved_at']=trainer.save_checkpoint()
             if early_stop_metric is not None:
-                outcome = trainer.logger.scalar_frame.sort_values(by=early_stop_metric).iloc[:1]
+                minimize = not guess_metric_sign(early_stop_metric)
+                outcome = trainer.logger.scalar_frame.sort_values(by=early_stop_metric,
+                                                ascending=minimize).iloc[:1]
             else:
                 outcome = trainer.logger.scalar_frame.iloc[-1:]
         except Exception as e:
