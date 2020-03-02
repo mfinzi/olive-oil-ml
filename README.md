@@ -2,7 +2,7 @@
 [![CodeClimate](http://img.shields.io/codeclimate/mfinzi/pristine-ml.svg?style=flat)](https://codeclimate.com/github/mfinzi/pristine-ml
 "CodeClimate")
 
-# Snake-Oil-ML
+# Olive-Oil-ML
 
 Nuts and bolts deep learning library to make training neural networks easier.
 Features:
