@@ -1,7 +1,7 @@
 from setuptools import setup,find_packages
 import sys, os
 
-setup(name="snake-oil-ml",
+setup(name="olive-oil-ml",
       description="For slowing down deep learning research",
       version='0.1',
       author='Marc Finzi',
