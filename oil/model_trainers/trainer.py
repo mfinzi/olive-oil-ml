@@ -3,6 +3,7 @@ from torch import optim
 from ..logging.lazyLogger import LazyLogger
 from ..utils.utils import Eval, Named
 from ..utils.mytqdm import tqdm
+from ..tuning.study import guess_metric_sign
 import copy, os, random
 import glob
 import numpy as np
@@ -11,9 +12,8 @@ from natsort import natsorted
 class Trainer(object,metaclass=Named):
     """ Base trainer
         """
-    def __init__(self, model, dataloaders, 
-                opt_constr=optim.Adam, lr_sched = lambda e: 1, 
-                log_dir=None, log_suffix='',log_args={}):
+    def __init__(self, model, dataloaders, opt_constr=optim.Adam, lr_sched = lambda e: 1, 
+                log_dir=None, log_suffix='',log_args={},early_stop_metric=None):
 
         # Setup model, optimizer, and dataloaders
         self.model = model
@@ -27,6 +27,8 @@ class Trainer(object,metaclass=Named):
         self.logger = LazyLogger(log_dir, log_suffix, **log_args)
         #self.logger.add_text('ModelSpec','model: {}'.format(model))
         self.hypers = {}
+        self.ckpt = copy.deepcopy(self.state_dict())
+        self.early_stop_metric = early_stop_metric
     
     def metrics(self,loader):
         return {}
@@ -77,7 +79,15 @@ class Trainer(object,metaclass=Named):
             if hasattr(m, 'log_data'):
                 m.log_data(self.logger,step,name)
         self.logger.report()
-    
+        # update the best checkpoint
+        if self.early_stop_metric is not None:
+            maximize = guess_metric_sign(self.early_stop_metric)
+            sign = 2*maximize-1
+            best = (sign*self.logger.scalar_frame[self.early_stop_metric].values).max()
+            current = sign*self.logger.scalar_frame[self.early_stop_metric].iloc[-1]
+            if current >= best: self.ckpt = copy.deepcopy(self.state_dict())
+        else: self.ckpt = copy.deepcopy(self.state_dict())
+
     def evalAverageMetrics(self,loader,metrics):
         num_total, loss_totals = 0, 0
         with Eval(self.model), torch.no_grad():
@@ -91,6 +101,7 @@ class Trainer(object,metaclass=Named):
 
     def state_dict(self):
         state = {
+            'outcome':self.logger.scalar_frame[-1:],
             'epoch':self.epoch,
             'model_state':self.model.state_dict(),
             'optim_state':self.optimizer.state_dict(),
@@ -114,5 +125,5 @@ class Trainer(object,metaclass=Named):
             self.load_state_dict(dill.load(path))
 
     def save_checkpoint(self):
-        return self.logger.save_object(self.state_dict(),suffix=f'checkpoints/c{self.epoch}.state')
+        return self.logger.save_object(self.ckpt,suffix=f'checkpoints/c{self.epoch}.state')
 

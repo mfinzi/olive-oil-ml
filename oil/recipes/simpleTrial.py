@@ -13,7 +13,7 @@ from functools import partial
 def makeTrainer(*,dataset=CIFAR10,network=layer13,num_epochs=100,
                 bs=50,lr=.1,aug=True,optim=SGD,device='cuda',trainer=Classifier,
                 split={'train':-1,'val':.1},net_config={},opt_config={},
-                trainer_config={'log_dir':None}):
+                trainer_config={'log_dir':None},save=False):
 
     # Prep the datasets splits, model, and dataloaders
     datasets = split_dataset(dataset(f'~/datasets/{dataset}/'),splits=split)

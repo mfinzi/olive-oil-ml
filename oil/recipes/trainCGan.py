@@ -13,7 +13,7 @@ from functools import partial
 def makeTrainer(*,gen=cgan.Generator,disc=cgan.Discriminator,
                 num_epochs=200,dataset=CIFAR10,bs=64,lr=2e-4,
                 device='cuda',net_config={},opt_config={'betas':(.5,.999)},
-                trainer_config={'n_disc':2,'log_dir':None}):
+                trainer_config={'n_disc':2,'log_dir':None},save=False):
 
     # Prep the datasets splits, model, and dataloaders
     datasets = {}

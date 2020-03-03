@@ -196,29 +196,20 @@ class train_trial(object):
             cfg.pop('local_rank',None) #TODO: properly handle distributed
             resume = cfg.pop('resume',False)
             save = cfg.pop('save',False)
-            early_stop_metric = cfg.pop('early_stop_metric',None)
             if i is not None:
                 orig_suffix = cfg.setdefault('trainer_config',{}).get('log_suffix','')
                 cfg['trainer_config']['log_suffix'] = os.path.join(orig_suffix,f'trial{i}/')
-                
             trainer = self.make_trainer(**cfg)
             try: cfg['params(M)'] = sum(p.numel() for p in trainer.model.parameters() if p.requires_grad)/10**6
             except AttributeError: pass
             trainer.logger.add_scalars('config',flatten_dict(cfg))
             epochs = cfg['num_epochs'] if isinstance(cfg['num_epochs'],Iterable) else [cfg['num_epochs']]
-            
             if resume: trainer.load_checkpoint(None if resume==True else resume)
-            
             epochs = [e for e in epochs if e>trainer.epoch]
             for epoch in epochs:
                 trainer.train_to(epoch)
                 if save: cfg['saved_at']=trainer.save_checkpoint()
-            if early_stop_metric is not None:
-                minimize = not guess_metric_sign(early_stop_metric)
-                outcome = trainer.logger.scalar_frame.sort_values(by=early_stop_metric,
-                                                ascending=minimize).iloc[:1]
-            else:
-                outcome = trainer.logger.scalar_frame.iloc[-1:]
+            outcome = trainer.ckpt['outcome']
         except Exception as e:
             if self.strict: raise
             outcome = e
