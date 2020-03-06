@@ -121,8 +121,8 @@ class Trainer(object,metaclass=Named):
             chkpts = glob.glob(os.path.join(self.logger.log_dirr,'checkpoints/c*.state'))
             path = natsorted(chkpts)[-1] # get most recent checkpoint
             print(f"loading checkpoint {path}")
-        with open(path,'rb'):
-            self.load_state_dict(dill.load(path))
+        with open(path,'rb') as f:
+            self.load_state_dict(dill.load(f))
 
     def save_checkpoint(self):
         return self.logger.save_object(self.ckpt,suffix=f'checkpoints/c{self.epoch}.state')
