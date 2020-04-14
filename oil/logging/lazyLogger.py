@@ -93,8 +93,8 @@ class LazyLogger(LogTimer, MaybeTbWriterWSerial):
         self.no_print = no_print
         self._com = ema_com
         self._unreported = {}
-        self._log_dir = tb_default_logdir(comment) if not log_dir else os.path.join(log_dir,comment)
-        super().__init__(log_dir=self._log_dir, **kwargs)
+        self._log_dirr = tb_default_logdir(comment) if not log_dir else os.path.join(log_dir,comment)
+        super().__init__(log_dir=self._log_dirr, **kwargs)
 
     def report(self):
         """ prints all unreported text and constants, prints scalar emas"""
@@ -108,7 +108,7 @@ class LazyLogger(LogTimer, MaybeTbWriterWSerial):
 
     @property # Needs to be read only
     def log_dirr(self): # Whatever was assigned by the tbwriter
-        return self._log_dir
+        return self._log_dirr
 
     def emas(self):
         """ Returns the exponential moving average of the logged
