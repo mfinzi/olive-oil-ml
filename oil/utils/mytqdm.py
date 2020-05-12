@@ -1,6 +1,7 @@
 import inspect
 try:    #tqdm.autonotebook
     from tqdm.auto import tqdm#_notebook as tqdm
+    tqdm.get_lock().locks = []
     old_print = print
     # if tqdm.tqdm.write raises error, use builtin print
     def new_print(*args, **kwargs):
