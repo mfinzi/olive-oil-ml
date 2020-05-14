@@ -34,11 +34,11 @@ class smallCNN(nn.Module,metaclass=Named):
     """
     Very small CNN
     """
-    def __init__(self, num_targets=10,k=16):
+    def __init__(self, num_targets=10,in_channels=3,k=16):
         super().__init__()
         self.num_targets = num_targets
         self.net = nn.Sequential(
-            ConvBNrelu(3,k),
+            ConvBNrelu(in_channels,k),
             ConvBNrelu(k,k),
             ConvBNrelu(k,2*k),
             nn.MaxPool2d(2),
@@ -60,11 +60,11 @@ class layer13s(nn.Module,metaclass=Named):
     """
     Very small CNN
     """
-    def __init__(self, num_targets=10,k=128):
+    def __init__(self, num_targets=10,in_channels=3,k=128):
         super().__init__()
         self.num_targets = num_targets
         self.net = nn.Sequential(
-            ConvBNrelu(3,k),
+            ConvBNrelu(in_channels,k),
             ConvBNrelu(k,k),
             ConvBNrelu(k,2*k),
             nn.MaxPool2d(2),#MaxBlurPool(2*k),
@@ -88,11 +88,11 @@ class layer13d(nn.Module,metaclass=Named):
     """
     Very small CNN
     """
-    def __init__(self, num_targets=10,k=128):
+    def __init__(self, num_targets=10,in_channels=3,k=128):
         super().__init__()
         self.num_targets = num_targets
         self.net = nn.Sequential(
-            ConvDrelu(3,k),
+            ConvDrelu(in_channels,k),
             ConvDrelu(k,k),
             ConvDrelu(k,2*k),
             nn.MaxPool2d(2),

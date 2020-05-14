@@ -112,8 +112,8 @@ class RandomHorizontalFlip(nn.Module):
         affineMatrices[:,1,1] = 1
         affineMatrices = torch.from_numpy(affineMatrices).float().to(x.device)
 
-        flowgrid = F.affine_grid(affineMatrices, size = x.size())
-        x_out = F.grid_sample(x, flowgrid)
+        flowgrid = F.affine_grid(affineMatrices, size = x.size(),align_corners=True)
+        x_out = F.grid_sample(x, flowgrid,align_corners=True)
         return x_out
 
     def forward(self, x):
@@ -155,8 +155,8 @@ class RandomTranslate(nn.Module):
         affineMatrices[:,1,2] = 2*np.random.randint(-self.max_trans, self.max_trans+1, bs)/h
         affineMatrices = torch.from_numpy(affineMatrices).float().to(x.device)
 
-        flowgrid = F.affine_grid(affineMatrices, size = x.size())
-        x_out = F.grid_sample(x, flowgrid)
+        flowgrid = F.affine_grid(affineMatrices, size = x.size(),align_corners=True)
+        x_out = F.grid_sample(x, flowgrid,align_corners=True)
         return x_out
 
     def forward(self, x):

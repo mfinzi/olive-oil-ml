@@ -49,7 +49,7 @@ class WideBasic(nn.Module):
 
 @export
 class WideResNet(nn.Module,metaclass=Named):
-    def __init__(self, num_targets=10, depth=28, widen_factor=10, drop_rate=0.3):
+    def __init__(self, num_targets=10, depth=28, widen_factor=10, drop_rate=0.3,in_channels=3,initial_stride=1):
         super(WideResNet, self).__init__()
         self.in_planes = 16
 
@@ -59,8 +59,8 @@ class WideResNet(nn.Module,metaclass=Named):
 
         nstages = [16, 16 * k, 32 * k, 64 * k]
 
-        self.conv1 = conv3x3(3, nstages[0])
-        self.layer1 = self._wide_layer(WideBasic, nstages[1], n, drop_rate, stride=1)
+        self.conv1 = conv3x3(in_channels, nstages[0])
+        self.layer1 = self._wide_layer(WideBasic, nstages[1], n, drop_rate, stride=initial_stride)
         self.layer2 = self._wide_layer(WideBasic, nstages[2], n, drop_rate, stride=2)
         self.layer3 = self._wide_layer(WideBasic, nstages[3], n, drop_rate, stride=2)
         self.bn1 = nn.BatchNorm2d(nstages[3])#, momentum=0.9)
@@ -82,13 +82,15 @@ class WideResNet(nn.Module,metaclass=Named):
         out = self.layer2(out)
         out = self.layer3(out)
         out = F.relu(self.bn1(out))
-        out = F.avg_pool2d(out, 8)
-        out = out.view(out.size(0), -1)
-        out = self.linear(out)
-
+        out = self.linear(out.mean(-1).mean(-1))
         return out
         
 @export
 class WideResNet28x10(WideResNet):
-    def __init__(self,num_targets=10,drop_rate=.3):
-        super().__init__(num_targets,depth=28, widen_factor=10,drop_rate=drop_rate)
+    def __init__(self,num_targets=10,drop_rate=.3,in_channels=3):
+        super().__init__(num_targets,depth=28, widen_factor=10,drop_rate=drop_rate,in_channels=in_channels)
+
+@export
+class WideResNet28x10stl(WideResNet):
+    def __init__(self,num_targets=10,drop_rate=.3,in_channels=3):
+        super().__init__(num_targets,depth=28, widen_factor=10,drop_rate=drop_rate,in_channels=in_channels,initial_stride=2)
