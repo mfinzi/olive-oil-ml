@@ -105,7 +105,8 @@ def split_dataset(dataset,splits):
         y = None
     indices = np.arange(len(dataset))
     split_datasets = {}
-    for split_name, split_count in sorted(int_splits.items(),reverse=True):
+    for split_name, split_count in sorted(int_splits.items(),reverse=True, key=lambda kv: kv[1]):
+        print(split_count)
         if split_count == len(indices) or split_count==-1:
             new_split_ids = indices
             indices = indices[:0]
