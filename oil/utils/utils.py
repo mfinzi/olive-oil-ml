@@ -278,8 +278,8 @@ class Expression(nn.Module):
         super(Expression, self).__init__()
         self.func = func
         
-    def forward(self, x):
-        return self.func(x)
+    def forward(self, *args,**kwargs):
+        return self.func(*args,**kwargs)
 
 
 
