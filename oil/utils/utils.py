@@ -273,6 +273,15 @@ class FixedNumpySeed(object):
         np.random.set_state(self.np_rng_state)
         random.setstate(self.rand_rng_state)
 
+class FixedPytorchSeed(object):
+    def __init__(self, seed):
+        self.seed = seed
+    def __enter__(self):
+        self.pt_rng_state = torch.random.get_rng_state()
+        torch.manual_seed(self.seed)
+    def __exit__(self, *args):
+        torch.random.set_rng_state(self.pt_rng_state)
+	
 class Expression(nn.Module):
     def __init__(self, func):
         super(Expression, self).__init__()
