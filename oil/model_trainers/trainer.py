@@ -27,7 +27,7 @@ class Trainer(object,metaclass=Named):
         self.logger = LazyLogger(log_dir, log_suffix, **log_args)
         #self.logger.add_text('ModelSpec','model: {}'.format(model))
         self.hypers = {}
-        self.ckpt = copy.deepcopy(self.state_dict())
+        self.ckpt = None#copy.deepcopy(self.state_dict())
         self.early_stop_metric = early_stop_metric
     
     def metrics(self,loader):

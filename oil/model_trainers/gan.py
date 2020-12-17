@@ -74,7 +74,7 @@ class Gan(Trainer):
         if minibatch is not None:
             metrics['G_loss'] = self.genLoss(minibatch).cpu().data.numpy()
             metrics['D_loss'] = self.discLoss(minibatch).cpu().data.numpy()
-        try: metrics['FID'],metrics['IS'] = FID_and_IS(self.as_dataloader(),self.dataloaders['dev'])
+        try: metrics['FID'],metrics['IS'] = FID_and_IS(self.as_dataloader(),self.dataloaders['test'])
         except KeyError: pass
         self.logger.add_scalars('metrics', metrics, step)
         # what if (in case of cycleGAN, there is no G?)
