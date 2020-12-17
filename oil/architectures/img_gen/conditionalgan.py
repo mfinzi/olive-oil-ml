@@ -5,11 +5,12 @@ import torch.nn.functional as F
 import torchcontrib
 import torchcontrib.nn.functional as contrib
 import numpy as np
-#from .spectral_normalization import SpectralNorm
-#from torch.nn.utils import spectral_norm
 from ...utils.utils import Expression,export,Named
 from .ganBase import GanBase, add_spectral_norm, xavier_uniform_init
 
+# Conditional Resnet GAN and Discriminator with Spectral normalization and Projection Discriminator
+# Implementation of architectures used in SNGAN (https://arxiv.org/abs/1802.05957)
+# With class conditional enhancement (FiLM and Projection Discriminator) from (https://arxiv.org/abs/1802.05637)
 
 class CategoricalFiLM(nn.Module):
     def __init__(self,num_classes,channels):

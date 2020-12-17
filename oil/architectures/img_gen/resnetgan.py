@@ -7,13 +7,13 @@ import numpy as np
 from ...utils.utils import Expression, Named
 from .ganBase import GanBase, add_spectral_norm, xavier_uniform_init
 
-
+# Resnet GAN and Discriminator with Spectral normalization
+# Implementation of architectures used in SNGAN (https://arxiv.org/abs/1802.05957)
 
 class Generator(GanBase):
     def __init__(self, z_dim=128,img_channels=3,k=128,**kwargs):
         super().__init__(z_dim,img_channels,**kwargs)
         self.k = k
-
         self.model = nn.Sequential(
             nn.Linear(z_dim, 4 * 4 * k),
             Expression(lambda z: z.view(-1,k,4,4)),

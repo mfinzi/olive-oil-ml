@@ -31,6 +31,8 @@ def get_logits(model,loader):
     return logits
 
 def FID_from_logits(logits1,logits2):
+    """Computes the FID between logits1 and logits2
+        Inputs: [logits1 (N,C)] [logits2 (N,C)] """
     mu1 = np.mean(logits1,axis=0)
     mu2 = np.mean(logits2,axis=0)
     sigma1 = np.cov(logits1, rowvar=False)
@@ -41,6 +43,8 @@ def FID_from_logits(logits1,logits2):
     return distance
 
 def IS_from_logits(logits):
+    """ Computes the Inception score (IS) from logits of the dataset of size N with C classes.
+        Inputs: [logits (N,C)], Outputs: [IS (scalar)]"""
     # E_z[KL(Pyz||Py)] = \mean_z [\sum_y (Pyz log(Pyz) - Pyz log(Py))]
     Pyz = np.exp(logits).transpose() # Take softmax (up to a normalization constant)
     Pyz /= Pyz.sum(0)[None,:]        # divide by normalization constant
@@ -79,7 +83,8 @@ def FID_and_IS(loader1,loader2):
     return FID_from_logits(logits1,logits2),IS_from_logits(logits1)
 
 def get_official_FID(loader,dataset='cifar10'):
-    dir = os.path.expanduser("~/pristine-ml/oil/utils/")
+    #TODO: make function not ass and check that it still works
+    dir = os.path.expanduser("~/olive-oil-ml/oil/utils/")
     path = dir+"temp"
     loader.write_imgs(path)
     if dataset not in ('cifar10',):

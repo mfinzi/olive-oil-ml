@@ -38,8 +38,10 @@ You can use `-h` to see the full range of arguments available. Command line argu
 from the code used to construct the trial, so you can make a new trial (that uses some exotic data augmentation strategy for example) and the command line parser will generated for you, see the example recipes for how this works.
 
 # Perform a hyperparameter search
-
-
+Example: Search over hyperparameters for CNN classifier on Cifar100
+* `python oil/recipes/exampleHyperSearch.py --dataset CIFAR100 --bs [50,32,64] --k [64,96] --num_epochs 100`
+See example code for programmatic way of specifying the hyperparameter search.
+Automatically parallelizes the search over multiple GPUs if available.
 # Logging Support
 
 # Interfacing with external libraries
