@@ -44,7 +44,7 @@ def IS_from_logits(logits):
     # E_z[KL(Pyz||Py)] = \mean_z [\sum_y (Pyz log(Pyz) - Pyz log(Py))]
     Pyz = np.exp(logits).transpose() # Take softmax (up to a normalization constant)
     Pyz /= Pyz.sum(0)[None,:]        # divide by normalization constant
-    Py = Pyz.mean(-1)[:,None]        # Average over z
+    Py = np.broadcast_to(Pyz.mean(-1)[:,None],Pyz.shape)        # Average over z
     logIS = entropy(Pyz,Py).mean()   # Average over z
     return np.exp(logIS)
 
