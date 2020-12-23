@@ -82,6 +82,9 @@ def FID_and_IS(loader1,loader2):
     logits2 = cachedLogits[loader2]
     return FID_from_logits(logits1,logits2),IS_from_logits(logits1)
 
+#TODO: Implement Kernel Inception Distance (KID) from (https://openreview.net/pdf?id=r1lUOzWCW)
+
+
 def get_official_FID(loader,dataset='cifar10'):
     #TODO: make function not ass and check that it still works
     dir = os.path.expanduser("~/olive-oil-ml/oil/utils/")

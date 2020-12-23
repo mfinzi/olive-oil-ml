@@ -11,7 +11,7 @@ from .ganBase import GanBase, add_spectral_norm, xavier_uniform_init
 # Implementation of architectures used in SNGAN (https://arxiv.org/abs/1802.05957)
 
 class Generator(GanBase):
-    def __init__(self, z_dim=128,img_channels=3,k=128,**kwargs):
+    def __init__(self, z_dim=128,img_channels=3,k=256,**kwargs):
         super().__init__(z_dim,img_channels,**kwargs)
         self.k = k
         self.model = nn.Sequential(
@@ -55,7 +55,7 @@ class ResBlockGenerator(nn.Module):
 
     def __init__(self, in_ch, out_ch, stride=1):
         super().__init__()
-        self.upsample = nn.Upsample(scale_factor=stride) if stride!=1 else nn.Sequential()
+        self.upsample = nn.Upsample(scale_factor=stride,mode='bilinear') if stride!=1 else nn.Sequential()
         self.model = nn.Sequential(
             nn.BatchNorm2d(in_ch),
             nn.ReLU(),

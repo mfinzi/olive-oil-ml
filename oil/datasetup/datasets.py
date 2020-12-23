@@ -20,7 +20,7 @@ class EasyIMGDataset(Dataset,metaclass=Named):
         transform = kwargs.pop('transform',None)
         if not transform: transform = self.default_transform(gan_normalize)
         super().__init__(*args,transform=transform,download=download,**kwargs)
-    
+        
     def default_transform(self,gan_normalize=False):
         if gan_normalize: 
             normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
