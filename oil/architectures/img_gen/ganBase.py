@@ -29,12 +29,13 @@ def add_spectral_norm(module):
     if isinstance(module,  (nn.ConvTranspose1d,
                             nn.ConvTranspose2d,
                             nn.ConvTranspose3d,
+                            )):
+        spectral_norm(module,dim = 1)
+        #print("SN on conv layer: ",module)
+    elif isinstance(module, (nn.Linear,
                             nn.Conv1d,
                             nn.Conv2d,
                             nn.Conv3d)):
-        spectral_norm(module,dim = 1)
-        #print("SN on conv layer: ",module)
-    elif isinstance(module, nn.Linear):
         spectral_norm(module,dim = 0)
         #print("SN on linear layer: ",module)
 
