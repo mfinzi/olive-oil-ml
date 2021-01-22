@@ -118,7 +118,7 @@ class islice(Wrapper):
     def __init__(self,loader,*args,**kwargs):
         super().__init__(loader)
         self._args = args
-	self._kwargs = kwargs
+        self._kwargs = kwargs
     def __iter__(self):
         return iter(itertools.islice(super().__iter__(),*self._args,**self._kwargs))
 
