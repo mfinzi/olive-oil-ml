@@ -67,7 +67,7 @@ def find_imgs_only(root_dir):
     return images,None
 
 @export
-class CelebA(Dataset,metaclass=Named):
+class CelebA(Dataset):
     def __init__(self, root_dir, transform=None,size=64,flow=False):
         super().__init__()
         if transform is None: transform = transforms.Compose([
