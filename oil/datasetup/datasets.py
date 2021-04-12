@@ -8,8 +8,6 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from . import augLayers
 from ..utils.utils import Named, export, Wrapper
-from . import camvid
-from .celeba import CelebA
 
 class EasyIMGDataset(Dataset,metaclass=Named):
     ignored_index = -100
