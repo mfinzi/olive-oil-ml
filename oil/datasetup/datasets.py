@@ -9,7 +9,7 @@ from sklearn.model_selection import train_test_split
 from . import augLayers
 from ..utils.utils import Named, export, Wrapper
 
-class EasyIMGDataset(Dataset,metaclass=Named):
+class EasyIMGDataset(Dataset):
     ignored_index = -100
     class_weights = None
     balanced = True
