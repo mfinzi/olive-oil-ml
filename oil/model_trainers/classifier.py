@@ -15,7 +15,7 @@ class Classifier(Trainer):
         try: class_weights = self.dataloaders['train'].dataset.class_weights
         except AttributeError: class_weights=None
         try: ignored_index = self.dataloaders['train'].dataset.ignored_index
-        except AttributeError: ignored_index=None
+        except AttributeError: ignored_index=-100
         criterion = nn.CrossEntropyLoss(weight=class_weights,ignore_index=ignored_index)
         return criterion(model(x),y)
 
