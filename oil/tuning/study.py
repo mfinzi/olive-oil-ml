@@ -90,33 +90,18 @@ class Study(object):
             configs = grid_iter(self.config_spec,num_trials,shuffle = not ordered)
             futures = {executor.submit(self.perform_trial,
                         cfg,start_id+i) for i, cfg in enumerate(configs)}
-            # for j, future in enumerate(tqdm(concurrent.futures.as_completed(futures),
-            #                                 total=len(futures),desc=self.name)):
-            #     cfg, outcome = future.result()
-            j=0
-            progress_bar = tqdm(total=len(futures),desc=self.name)
-            while futures:
-                for future in futures:
-                    if future.done():
-                        cfg,outcome = future.result()
-                        cfg_row = pd.DataFrame(flatten_dict(cfg),index=['config {}'.format(start_id+j)])
-                        outcome_row = outcome.iloc[-1].to_frame('outcome {}'.format(start_id+j)).T
-                        self.configs = self.configs.append(cfg_row)
-                        self.outcomes = self.outcomes.append(outcome_row)
-                        with pd.option_context('display.expand_frame_repr',False):
-                            print(self.configs.iloc[-1:])
-                            print(self.outcomes.iloc[-1:])
-                        self.logger.save_object(self.results_df(),'results.df')
-                        self.save_loc = self.logger.save_object(self,'study.s')
-
-                        progress_bar.update(1)
-                        j+=1
-                        break
-                else:
-                    self.process_user_input(executor)
-                    continue
-                futures.remove(future)
-            progress_bar.close()
+            for j, future in enumerate(tqdm(concurrent.futures.as_completed(futures),
+                                            total=len(futures),desc=self.name)):
+                cfg, outcome = future.result()
+                cfg_row = pd.DataFrame(flatten_dict(cfg),index=['config {}'.format(start_id+j)])
+                outcome_row = outcome.iloc[-1].to_frame('outcome {}'.format(start_id+j)).T
+                self.configs = self.configs.append(cfg_row)
+                self.outcomes = self.outcomes.append(outcome_row)
+                with pd.option_context('display.expand_frame_repr',False):
+                    print(self.configs.iloc[-1:])
+                    print(self.outcomes.iloc[-1:])
+                self.logger.save_object(self.results_df(),'results.df')
+                self.save_loc = self.logger.save_object(self,'study.s')
         return self.save_loc
         # we could pass in a function that outputs the generator, and that function
         # can be pickled (by dill)
