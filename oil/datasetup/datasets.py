@@ -8,10 +8,8 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from . import augLayers
 from ..utils.utils import Named, export, Wrapper
-from . import camvid
-from .celeba import CelebA
 
-class EasyIMGDataset(Dataset,metaclass=Named):
+class EasyIMGDataset(Dataset):
     ignored_index = -100
     class_weights = None
     balanced = True
@@ -20,7 +18,7 @@ class EasyIMGDataset(Dataset,metaclass=Named):
         transform = kwargs.pop('transform',None)
         if not transform: transform = self.default_transform(gan_normalize)
         super().__init__(*args,transform=transform,download=download,**kwargs)
-    
+        
     def default_transform(self,gan_normalize=False):
         if gan_normalize: 
             normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))

@@ -16,6 +16,7 @@ import os
 import numpy as np
 from collections.abc import Iterable
 import __main__ as main
+import logging
 
 def slurm_available():
     return distutils.spawn.find_executable('salloc') is not None
@@ -196,6 +197,10 @@ class train_trial(object):
             cfg.pop('local_rank',None) #TODO: properly handle distributed
             resume = cfg.pop('resume',False)
             save = cfg.pop('save',False)
+            levels = {'critical': logging.CRITICAL,'error': logging.ERROR,
+                        'warn': logging.WARNING,'warning': logging.WARNING,
+                        'info': logging.INFO,'debug': logging.DEBUG}
+            logging.getLogger().setLevel(levels[cfg.pop('log_level','warn')])
             if i is not None:
                 orig_suffix = cfg.setdefault('trainer_config',{}).get('log_suffix','')
                 cfg['trainer_config']['log_suffix'] = os.path.join(orig_suffix,f'trial{i}/')

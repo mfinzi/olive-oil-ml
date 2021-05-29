@@ -25,7 +25,7 @@ def argupdated_config(cfg,parser=None, namespace=None):
             parser.add_argument('--'+fields[0],default={},help="Additional Kwargs")
             clobbered_name_mapping[fields[0]] = fields[0]
 
-    parser.add_argument("--local_rank",type=int) # so that distributed will work #TODO: sort this out properly
+    #parser.add_argument("--local_rank",type=int) # so that distributed will work #TODO: sort this out properly
     args = parser.parse_args()
     add_to_namespace(namespace)
     for short_argname, argvalue in vars(args).items():

@@ -21,7 +21,7 @@ class CategoricalFiLM(nn.Module):
         return contrib.film(x,self.gammas(y),self.betas(y))
 
 class Generator(GanBase):
-    def __init__(self, num_classes,z_dim=128,img_channels=3,k=128):
+    def __init__(self, num_classes,z_dim=128,img_channels=3,k=256):
         super().__init__(z_dim,img_channels)
         self.num_classes = num_classes
         self.k = k
@@ -90,7 +90,7 @@ class cResBlockGenerator(nn.Module):
         self.conv2 = nn.Conv2d(out_channels, out_channels, 3, 1, padding=1)
         if stride!=1 or in_channels!=out_channels:
             self.shortcut = nn.Sequential(
-                nn.Upsample(scale_factor=stride),
+                nn.Upsample(scale_factor=stride,mode='bilinear'),
                 nn.Conv2d(in_channels,out_channels,3, 1, padding=1))
         else: 
             self.shortcut = nn.Sequential()

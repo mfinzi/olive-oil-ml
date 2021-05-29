@@ -12,8 +12,10 @@ class Classifier(Trainer):
         """ Standard cross-entropy loss """
         x,y = minibatch
         if model is None: model = self.model
-        class_weights = self.dataloaders['train'].dataset.class_weights
-        ignored_index = self.dataloaders['train'].dataset.ignored_index
+        try: class_weights = self.dataloaders['train'].dataset.class_weights
+        except AttributeError: class_weights=None
+        try: ignored_index = self.dataloaders['train'].dataset.ignored_index
+        except AttributeError: ignored_index=-100
         criterion = nn.CrossEntropyLoss(weight=class_weights,ignore_index=ignored_index)
         return criterion(model(x),y)
 

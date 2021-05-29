@@ -9,16 +9,20 @@ from oil.datasetup.datasets import CIFAR10
 from oil.utils.parallel import try_multigpu_parallelize
 from oil.tuning.args import argupdated_config
 from functools import partial
+from torchvision import transforms
 
 def makeTrainer(*,gen=resnetgan.Generator,disc=resnetgan.Discriminator,
-                num_epochs=200,dataset=CIFAR10,bs=64,lr=2e-4,
+                num_epochs=500,dataset=CIFAR10,bs=64,lr=2e-4,
                 device='cuda',net_config={},opt_config={'betas':(.5,.999)},
-                trainer_config={'n_disc':2,'log_dir':None},save=False):
+                trainer_config={'n_disc':5,'log_dir':None},save=False):
 
+    transform = transforms.Compose([transforms.RandomHorizontalFlip(),
+                                transforms.ToTensor(),
+                                transforms.Normalize((.5,.5,.5),(.5,.5,.5))])
     # Prep the datasets splits, model, and dataloaders
     datasets = {}
-    datasets['train'] = dmap(lambda mb: mb[0],dataset(f'~/datasets/{dataset}/',gan_normalize=True))
-    datasets['test'] = dmap(lambda mb: mb[0],dataset(f'~/datasets/{dataset}/',train=False,gan_normalize=True))
+    datasets['train'] = dmap(lambda mb: mb[0],dataset(f'~/datasets/{dataset}/',transform=transform))
+    datasets['test'] = dmap(lambda mb: mb[0],dataset(f'~/datasets/{dataset}/',train=False,transform=transform))
 
     device = torch.device(device)
     G = gen(**net_config).to(device)
