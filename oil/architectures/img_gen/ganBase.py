@@ -25,6 +25,7 @@ class GanBase(nn.Module,metaclass=Named):
     def sample(self, n=1):
         return self(self.sample_z(n))
 
+
 def add_spectral_norm(module):
     if isinstance(module,  (nn.ConvTranspose1d,
                             nn.ConvTranspose2d,
