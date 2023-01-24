@@ -2,9 +2,9 @@ import argparse
 import sys
 import numpy as np
 from .configGenerator import flatten, unflatten
-from oil.datasetup import *
-from oil.architectures import *
-from torch.optim import *
+#from oil.datasetup import *
+#from oil.architectures import *
+#from torch.optim import *
 
 def argupdated_config(cfg,parser=None, namespace=None):
     """ Uses the cfg to generate a parser spec which parses the command line arguments
