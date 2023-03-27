@@ -3,7 +3,7 @@ import sys, os
 
 setup(name="olive-oil-ml",
       description="For slowing down deep learning research",
-      version='0.1',
+      version='0.1.1',
       author='Marc Finzi',
       author_email='maf388@cornell.edu',
       license='MIT',
