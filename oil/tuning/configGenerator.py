@@ -3,7 +3,9 @@ import numpy as np
 import numbers
 import random
 from ..utils.utils import log_uniform,ReadOnlyDict,FixedNumpySeed
-from collections import Iterable,defaultdict
+from collections import defaultdict
+from collections.abc import Iterable
+
 import itertools,operator,functools
 # class SearchVariation(object):
 #     def __init__(self,sample_func):
